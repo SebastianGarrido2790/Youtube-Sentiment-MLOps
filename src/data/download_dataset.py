@@ -1,5 +1,5 @@
 """
-Download raw dataset from external source.
+Download the raw dataset an from external source.
 
 This script fetches the Reddit sentiment CSV as a **proxy dataset** for initial model training.
 It saves the downloaded file to the `data/raw/` directory.
@@ -23,24 +23,21 @@ Design Considerations:
 """
 
 import argparse
-import logging
 import os
 import requests
-from pathlib import Path
 
-# Configure basic logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# --- Project Utilities ---
+from src.utils.paths import RAW_DATA_DIR
+from src.utils.logger import get_logger
 
-# --- Configuration ---
-# The URL for the raw Reddit dataset you provided
+# --- Logging Setup ---
+logger = get_logger(__name__, headline="download_dataset.py")
+
+# --- File Paths ---
+RAW_PATH = RAW_DATA_DIR / "reddit_comments.csv"
+RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+# The URL for the raw Reddit dataset (proxy for YouTube data)
 DEFAULT_DATA_URL = "https://raw.githubusercontent.com/Himanshu-1703/reddit-sentiment-analysis/refs/heads/main/data/reddit.csv"
-# The target path for the raw data
-DEFAULT_OUTPUT_PATH = "data/raw/reddit_comments.csv"
-
-# --- Functions ---
 
 
 def download_file(url: str, output_path: str):
@@ -51,7 +48,6 @@ def download_file(url: str, output_path: str):
         url (str): The public URL of the file to download.
         output_path (str): The local path to save the downloaded file.
     """
-    logger.info(f"Attempting to download data from: {url}")
 
     # Create the output directory if it doesn't exist
     output_dir = os.path.dirname(output_path)
@@ -69,7 +65,7 @@ def download_file(url: str, output_path: str):
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-        logger.info(f"Successfully downloaded and saved data to: {output_path}")
+        logger.info(f"✅ Successfully downloaded and saved data to: {output_path}")
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error downloading data: {e}")
@@ -95,13 +91,14 @@ def main():
     parser.add_argument(
         "--output_path",
         type=str,
-        default=DEFAULT_OUTPUT_PATH,
+        default=RAW_PATH,
         help="Local path to save the downloaded raw dataset.",
     )
 
     args = parser.parse_args()
 
     # Download the file
+    logger.info(f"--- Starting download from {args.url} to {args.output_path} ---")
     download_file(args.url, args.output_path)
 
 

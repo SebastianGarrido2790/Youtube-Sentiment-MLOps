@@ -1,20 +1,20 @@
 stages:
   data_ingestion:
-    cmd: uv run python -m src.data.download_dataset \
-      --url ${data_ingestion.url} \
-      --output_path ${data_ingestion.output_path}
+    cmd: uv run python -m src.data.download_dataset --url ${data_ingestion.url} --output_path ${data_ingestion.output_path}
     deps:
       - src/data/download_dataset.py
+      - src/utils/logger.py
+      - src/utils/paths.py
     outs:
       - data/raw/reddit_comments.csv
 
   data_preparation:
-    cmd: uv run python -m src.data.make_dataset \
-      --test_size ${data_preparation.test_size} \
-      --random_state ${data_preparation.random_state}
+    cmd: uv run python -m src.data.make_dataset --test_size ${data_preparation.test_size} --random_state ${data_preparation.random_state}
     deps:
       - data/raw/reddit_comments.csv
       - src/data/make_dataset.py
+      - src/utils/logger.py
+      - src/utils/paths.py
     params:
       - data_preparation.test_size
       - data_preparation.random_state
@@ -24,17 +24,14 @@ stages:
       - data/processed/test.parquet
 
   feature_comparison:
-    cmd: uv run python -m src.features.tfidf_vs_bert \
-      --ngram_ranges ${feature_comparison.ngram_ranges} \
-      --max_features ${feature_comparison.max_features} \
-      --batch_size ${feature_comparison.batch_size} \
-      --n_estimators ${feature_comparison.n_estimators} \
-      --max_depth ${feature_comparison.max_depth}
+    cmd: uv run python -m src.features.tfidf_vs_bert --ngram_ranges ${feature_comparison.ngram_ranges} --max_features ${feature_comparison.max_features} --batch_size ${feature_comparison.batch_size} --n_estimators ${feature_comparison.n_estimators} --max_depth ${feature_comparison.max_depth}
     deps:
       - data/processed/train.parquet
       - data/processed/test.parquet
       - src/features/tfidf_vs_bert.py
-      - src/utils/mlflow_utils.py
+      - src/utils/mlflow_config.py
+      - src/utils/logger.py
+      - src/utils/paths.py
     params:
       - feature_comparison.mlflow_uri
       - feature_comparison.ngram_ranges
@@ -47,21 +44,39 @@ stages:
       - models/features/tfidf_vs_bert/
 
   feature_tuning:
-    cmd: uv run python -m src.features.tfidf_max_features \
-      --max_features_values ${feature_tuning.max_features_values} \
-      --ngram_range ${feature_tuning.ngram_range} \
-      --n_estimators ${feature_tuning.n_estimators} \
-      --max_depth ${feature_tuning.max_depth}
+    cmd: uv run python -m src.features.tfidf_max_features --max_features_values ${feature_tuning.max_features_values} --ngram_range ${feature_tuning.best_ngram_range} --n_estimators ${feature_tuning.n_estimators} --max_depth ${feature_tuning.max_depth}
     deps:
       - data/processed/train.parquet
       - data/processed/test.parquet
       - src/features/tfidf_max_features.py
-      - src/utils/mlflow_utils.py
+      - src/utils/mlflow_config.py
+      - src/utils/logger.py
+      - src/utils/paths.py
     params:
       - feature_tuning.max_features_values
-      - feature_tuning.ngram_range
+      - feature_tuning.best_ngram_range
       - feature_tuning.n_estimators
       - feature_tuning.max_depth
     outs:
       - reports/figures/tfidf_max_features/
       - models/features/tfidf_max_features/
+
+  imbalance_tuning:
+    # Notice the quotes around imbalance_methods. This ensures DVC passes the entire list string correctly to Python.
+    cmd: uv run python -m src.features.imbalance_tuning --imbalance_methods "${imbalance_tuning.imbalance_methods}" --max_features ${imbalance_tuning.best_max_features} --ngram_range ${imbalance_tuning.best_ngram_range} --n_estimators ${imbalance_tuning.rf_n_estimators} --max_depth ${imbalance_tuning.rf_max_depth}
+    deps:
+    - data/processed/train.parquet
+    - data/processed/test.parquet
+    - src/features/imbalance_tuning.py
+    - src/utils/mlflow_config.py
+    - src/utils/logger.py
+    - src/utils/paths.py
+    params:
+    - imbalance_tuning.imbalance_methods
+    - imbalance_tuning.best_max_features
+    - imbalance_tuning.best_ngram_range
+    - imbalance_tuning.rf_n_estimators
+    - imbalance_tuning.rf_max_depth
+    outs:
+    - reports/figures/imbalance_tuning/
+    - models/features/imbalance_tuning/

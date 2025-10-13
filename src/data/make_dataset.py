@@ -19,10 +19,7 @@ Design Considerations:
 """
 
 import argparse
-import logging
-from pathlib import Path
 from typing import Optional
-
 import pandas as pd
 import re
 from sklearn.model_selection import train_test_split
@@ -30,20 +27,20 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
-# Download NLTK data if needed (one-time; punkt_tab for modern NLTK)
+# --- Project Utilities ---
+from src.utils.paths import RAW_DATA_DIR, TRAIN_PATH, VALIDATION_PATH, TEST_PATH
+from src.utils.logger import get_logger
+
+# --- Logging Setup ---
+logger = get_logger(__name__, headline="make_dataset.py")
+
+# --- NLTK Setup ---
 nltk.download("punkt_tab", quiet=True)
 nltk.download("stopwords", quiet=True)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-# Default paths relative to project root (three parents from src/data/)
-ROOT = Path(__file__).parent.parent.parent
-RAW_PATH = ROOT / "data" / "raw" / "reddit_comments.csv"
-PROCESSED_DIR = ROOT / "data" / "processed"
+# --- File Paths ---
+RAW_PATH = RAW_DATA_DIR / "reddit_comments.csv"
+RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def clean_text(text: str, stop_words: Optional[set] = None) -> str:
@@ -78,7 +75,6 @@ def prepare_reddit_dataset(test_size: float = 0.15, random_state: int = 42) -> N
         test_size (float): Fraction for test split.
         random_state (int): Seed for reproducibility.
     """
-    logger.info("Starting data preparation and splitting.")
 
     if not RAW_PATH.exists():
         raise FileNotFoundError(
@@ -91,19 +87,31 @@ def prepare_reddit_dataset(test_size: float = 0.15, random_state: int = 42) -> N
         raise ValueError("Invalid raw data structure.")
     logger.info(f"Loaded {len(df)} rows from raw data with shape: {df.shape}.")
 
+    # --- Label normalization for consistency ---
+    # Many ML tools (e.g., np.bincount, SMOTE, StratifiedKFold) require non-negative labels.
+    unique_labels = sorted(df["category"].unique())
+    # This ensures your raw data always has the expected structure
+    if unique_labels != [-1, 0, 1]:
+        raise ValueError(f"Unexpected category labels: {unique_labels}")
+    # Map {-1, 0, 1} → {0, 1, 2}
+    df["category_encoded"] = df["category"].map({-1: 0, 0: 1, 1: 2})
+    logger.info(
+        f"Original label distribution: {dict(df['category'].value_counts().sort_index())}"
+    )
+    logger.info(
+        f"Encoded label distribution: {dict(df['category_encoded'].value_counts().sort_index())}"
+    )
+
     # Cleaning
     stop_words = set(stopwords.words("english"))
     df = df.dropna(subset=["clean_comment"])
     df["clean_comment"] = df["clean_comment"].apply(lambda x: clean_text(x, stop_words))
     df = df[df["clean_comment"].str.len() > 0]
-    logger.info(f"After cleaning: {len(df)} rows.")
+    logger.info(f"Dataset after cleaning: {len(df)} rows.")
 
     # Label engineering
     label_map = {-1: "Negative", 0: "Neutral", 1: "Positive"}
     df["sentiment_label"] = df["category"].map(label_map)
-
-    # Ensure processed dir
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
     # Stratified split
     train_val, test = train_test_split(
@@ -119,9 +127,9 @@ def prepare_reddit_dataset(test_size: float = 0.15, random_state: int = 42) -> N
 
     # Save and validate shapes
     outputs = [
-        (PROCESSED_DIR / "train.parquet", train),
-        (PROCESSED_DIR / "val.parquet", val),
-        (PROCESSED_DIR / "test.parquet", test),
+        (TRAIN_PATH, train),
+        (VALIDATION_PATH, val),
+        (TEST_PATH, test),
     ]
     for out_path, split_df in outputs:
         split_df.to_parquet(out_path, index=False)
@@ -131,6 +139,9 @@ def prepare_reddit_dataset(test_size: float = 0.15, random_state: int = 42) -> N
     # Log splits
     logger.info(
         f"Splits prepared: Train {train.shape[0]}, Val {val.shape[0]}, Test {test.shape[0]}"
+    )
+    logger.info(
+        f"Train class distribution: {train['category'].value_counts().to_dict()}"
     )
 
 
@@ -142,6 +153,10 @@ def main() -> None:
     )
     parser.add_argument("--random_state", type=int, default=42, help="Random seed.")
     args = parser.parse_args()
+
+    logger.info(
+        f"--- Preparing dataset with test_size={args.test_size} and random_state={args.random_state} ---"
+    )
     prepare_reddit_dataset(args.test_size, args.random_state)
 
 

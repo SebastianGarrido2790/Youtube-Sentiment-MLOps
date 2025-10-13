@@ -1,4 +1,4 @@
-### Feature Engineering Script: src/features/feature_engineering.py
+## Feature Engineering Script: src/features/feature_engineering.py
 
 This script loads the prepared Parquet splits from `data/processed/`, engineers features for sentiment analysis, and saves feature matrices (X) and labels (y) as compressed NumPy arrays in `data/processed/features/`. Features include:
 - **Text-based**: TF-IDF vectors (unigrams/bigrams, max features=5000 for scalability).
@@ -184,5 +184,82 @@ You can address the poor recall for negative samples using one or several of the
 | Likely cause        | Class imbalance and sparse negative signals          |
 | Next improvement    | Use `class_weight='balanced'` or a linear classifier |
 | MLflow setup        | Correct — metrics are well-logged for comparison     |
+
+---
+
+## src\features\imbalance_tuning.py
+We have successfully run the imbalance tuning experiments using various techniques to handle class imbalance in our sentiment analysis task. The results have been logged to MLflow for easy comparison. Our DVC + MLflow pipeline is working perfectly, and now we have the full experimental comparison across all imbalance methods.
+
+Let’s interpret the results objectively and select the best approach based on our metrics.
+
+---
+
+## ⚙️ Summary of Results
+
+| Method            | Accuracy   | F1 (Neutral class, 1) | Comments                                                               |
+| :---------------- | :--------- | :-------------------- | :--------------------------------------------------------------------- |
+| **Class Weights** | 0.6758     | **0.7286**            | Baseline RandomForest with internal balancing                          |
+| **Oversampling**  | 0.6723     | 0.7239                | Balanced dataset, but risk of overfitting                              |
+| **ADASYN**        | **0.6814** | **0.7333**            | Slightly better overall — adaptive sampling focuses on difficult cases |
+| **Undersampling** | 0.6749     | 0.7303                | Simple, efficient, but information loss                                |
+| **SMOTE+ENN**     | 0.2696     | 0.1482                | Severe degradation — noisy data or poor overlap between classes        |
+
+---
+
+## 🧠 Interpretation
+
+### 🔹 1. **SMOTE+ENN failed badly**
+
+SMOTE+ENN underperformed (Accuracy ≈ 0.27), which means the combined synthetic/cleaning process destroyed class structure — common when:
+
+* Text embeddings are sparse (TF-IDF).
+* Boundary samples overlap heavily.
+* You have a large class imbalance and few minority examples.
+
+→ **Drop this method** for text classification unless you switch to dense embeddings (e.g., BERT).
+
+---
+
+### 🔹 2. **ADASYN outperformed slightly**
+
+ADASYN achieved:
+
+* Best **accuracy (0.6814)**
+* Best **F1 score (0.7333)**
+
+Because it focuses on generating synthetic samples *only around hard-to-learn regions*, it adapts better to nonlinear class boundaries typical in sentiment data.
+
+→ **Best overall trade-off** between balance and generalization.
+
+---
+
+### 🔹 3. **Class Weights** remain a strong baseline
+
+* No data alteration.
+* Stable performance (F1 ≈ 0.7286).
+* Ideal for reproducibility and quick training.
+
+→ Recommended if you prioritize **simplicity and speed**.
+
+---
+
+## 🏆 Final Recommendation
+
+| Goal                                               | Best Method       | Reason                                      |
+| -------------------------------------------------- | ----------------- | ------------------------------------------- |
+| **Best performance (balanced recall + precision)** | **ADASYN**        | Improves minority class learning adaptively |
+| **Most stable & production-ready**                 | **Class Weights** | No synthetic noise, simpler reproducibility |
+| **Fast & low-resource**                            | **Undersampling** | Useful for quick prototyping                |
+
+---
+
+## 🔍 Next step
+
+You can confirm this choice in MLflow visually:
+
+1. Open your local MLflow UI (`http://127.0.0.1:5000`).
+2. Compare all runs under `imbalance_tuning`.
+3. Sort by **F1 score** or **accuracy**.
+4. Export the ADASYN model as your baseline for the next stage (e.g., hyperparameter tuning or embedding-level model).
 
 ---

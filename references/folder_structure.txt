@@ -3,7 +3,6 @@
 ├── .dvc
 ├── .venv
 ├── github
-├── mlruns
 ├── .env               <- Environmental variable for APIs.
 ├── data
 │   ├── external       <- Data from third-party sources.
@@ -38,20 +37,27 @@
 │   │
 │   ├── features       <- Scripts to turn raw data into features for modeling.
 │   │   ├── feature_engineering.py
-│   │   ├── handling_imbalanced_data.py
+│   │   ├── imbalanced_tuning.py
 │   │   ├── tfidf_max_features.py
 │   │   └── tfidf_vs_bert.py
 │   │
-│   └── models         <- Scripts to train models and then use trained models to make predictions.
-│       ├── advanced_training.py
-│       ├── baseline_logistic.py
-│       ├── model_evaluation.py
-│       ├── predict_model.py
-│       └── register_model.py
-│    
+│   ├── models         <- Scripts to train models and then use trained models to make predictions.
+│   │   ├── advanced_training.py
+│   │   ├── baseline_logistic.py
+│   │   ├── model_evaluation.py
+│   │   ├── predict_model.py
+│   │   └── register_model.py
+│   │
+│   └── utils <- Scripts for reusable helper functions, classes, and modules.
+│       ├── __init__.py
+│       ├── logger.py
+│       └── mlflow_config.py
+│
 ├── .dvcignore
+├── .gitignore
 ├── .python-version
 ├── dvc.yaml
+├── params.yaml
 ├── pyproject.toml
 └── uv.lock
 

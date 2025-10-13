@@ -2,15 +2,15 @@
 Tune TF-IDF max_features for sentiment feature engineering (unigrams).
 
 Loads processed data, varies max_features, trains RandomForest baselines, logs to MLflow,
-and saves visualizations/models.
+and saves visualiartifactszations/models.
 
 Usage:
-    uv run python -m src.features.tfidf_max_features --max_features_values '[1000,2000]' --ngram_range '(1,1)'
+    uv run python -m src.features.tfidf_max_features --max_features_values '[1000,2000,3000,4000,5000,6000,7000,8000,9000,10000]'
 
 Requirements:
     - Processed data in data/processed/.
     - uv sync (for scikit-learn, mlflow, seaborn).
-    - MLflow server running.
+    - MLflow server running (e.g., uv run mlflow server --host 127.0.0.1 --port 5000).
 
 Design Considerations:
 - Reliability: Input validation, consistent splits.
@@ -21,47 +21,38 @@ Design Considerations:
 
 import argparse
 import ast  # For safe list/tuple parsing from params
-import logging
 from typing import Tuple
-
+import pickle
 import mlflow
 import mlflow.sklearn
-import numpy as np
 import pandas as pd
 import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import matplotlib.pyplot as plt
-import pickle
-from pathlib import Path
 
-# Import the modular MLflow URI loader
-from src.utils.mlflow_utils import get_mlflow_uri
+# --- Project Utilities ---
+from src.utils.mlflow_config import get_mlflow_uri
+from src.utils.logger import get_logger
+from src.utils.paths import FIGURES_DIR, MODELS_DIR, TRAIN_PATH, TEST_PATH, PROJECT_ROOT
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# --- Logging Setup ---
+logger = get_logger(__name__, headline="tfidf_max_features.py")
 
-# Paths relative to project root
-ROOT = Path(__file__).parent.parent.parent
-TRAIN_PATH = ROOT / "data" / "processed" / "train.parquet"
-TEST_PATH = ROOT / "data" / "processed" / "test.parquet"
-FIGURES_DIR = ROOT / "reports" / "figures" / "tfidf_max_features"
-MODELS_DIR = ROOT / "models" / "features" / "tfidf_max_features"
-FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
+# --- Path setup ---
+TFIDF_MODELS_DIR = MODELS_DIR / "features" / "tfidf_max_features"
+TFIDF_FIGURES_DIR = FIGURES_DIR / "tfidf_max_features"
+TFIDF_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+TFIDF_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-# Initialize MLflow URI via utility function
-mlflow_uri = get_mlflow_uri(params_path=str(ROOT / "params.yaml"))
+# --- MLflow setup via utility function (for consistency) ---
+mlflow_uri = get_mlflow_uri()
 mlflow.set_tracking_uri(mlflow_uri)
-mlflow.set_experiment("Exp - TFIDF max_features")
-logger.info(f"Using MLflow Tracking URI: {mlflow_uri}")
+mlflow.set_experiment("Exp - TFIDF Max Features")
 
 
-def run_experiment_tfidf_max_features(
+def run_max_features_experiment(
     max_features: int,
     ngram_range: Tuple[int, int],
     n_estimators: int,
@@ -76,7 +67,8 @@ def run_experiment_tfidf_max_features(
         n_estimators: RF trees.
         max_depth: RF depth.
     """
-    # Load data
+
+    # --- Load data ---
     if not TRAIN_PATH.exists() or not TEST_PATH.exists():
         raise FileNotFoundError("Processed data missing. Run data_preparation first.")
 
@@ -90,7 +82,7 @@ def run_experiment_tfidf_max_features(
         f"Loaded train: {len(X_train_text)} samples, test: {len(X_test_text)} samples."
     )
 
-    # Vectorization using TF-IDF
+    # --- Vectorization using TF-IDF ---
     vectorizer = TfidfVectorizer(
         ngram_range=ngram_range,
         max_features=max_features,
@@ -103,77 +95,79 @@ def run_experiment_tfidf_max_features(
     X_test = vectorizer.transform(X_test_text)
     feature_dim = X_train.shape[1]
 
-    # Save vectorizer locally
-    vectorizer_path = MODELS_DIR / f"tfidf_vectorizer_max_features_{max_features}.pkl"
-    with open(vectorizer_path, "wb") as f:
-        pickle.dump(vectorizer, f)
-    logger.info(f"Saved TF-IDF vectorizer: {vectorizer_path}")
-
-    # Train model
-    model = RandomForestClassifier(
-        n_estimators=n_estimators, max_depth=max_depth, random_state=42
-    )
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-
-    # MLflow Tracking
+    # --- MLflow Tracking ---
     with mlflow.start_run() as run:
+        run_name = f"TFIDF_max_features_{max_features}"
+        logger.info(f"🚀 Running experiment: {run_name}")
         # Tags
-        mlflow.set_tag("mlflow.runName", f"TFIDF_max_features_{max_features}")
-        mlflow.set_tag("experiment_type", "feature_engineering")
+        mlflow.set_tag("mlflow.runName", run_name)
+        mlflow.set_tag("experiment_type", "feature_comparison")
         mlflow.set_tag("model_type", "RandomForestClassifier")
         mlflow.set_tag(
             "description",
             f"RF with TF-IDF, max_features={max_features}, ngram={ngram_range}",
         )
+
         # Params
-        mlflow.log_param("vectorizer_type", "TF-IDF")
+        mlflow.log_param("vectorizer", "TF-IDF")
         mlflow.log_param("ngram_range", ngram_range)
         mlflow.log_param("max_features", max_features)
         mlflow.log_param("feature_dim", feature_dim)
         mlflow.log_param("n_estimators", n_estimators)
         mlflow.log_param("max_depth", max_depth)
-        # Metrics
+
+        # --- Model Training ---
+        model = RandomForestClassifier(
+            n_estimators=n_estimators, max_depth=max_depth, random_state=42
+        )
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
         mlflow.log_metric("accuracy", accuracy)
         logger.info(f"Model Accuracy: {accuracy:.4f}")
 
-        # Classification report
+        # Classification report (log key metrics, focusing on class 1)
         report = classification_report(y_test, y_pred, output_dict=True)
         for label, metrics in report.items():
             if isinstance(metrics, dict):
-                for metric, value in metrics.items():
-                    mlflow.log_metric(f"{label}_{metric}", value)
+                mlflow.log_metric(f"{label}_f1-score", metrics.get("f1-score", 0))
+                mlflow.log_metric(f"{label}_precision", metrics.get("precision", 0))
+                mlflow.log_metric(f"{label}_recall", metrics.get("recall", 0))
 
-        # Confusion matrix
+        # Log key class 1 metrics to console
+        logger.info(f"Recall: {report.get('1', {}).get('recall'):.4f}")
+        logger.info(f"Precision: {report.get('1', {}).get('precision'):.4f}")
+        logger.info(f"F1-score: {report.get('1', {}).get('f1-score'):.4f}")
+
+        # Confusion matrix (artifact)
         conf_matrix = confusion_matrix(y_test, y_pred)
         plt.figure(figsize=(8, 6))
-        sns.heatmap(
-            conf_matrix,
-            annot=True,
-            fmt="d",
-            cmap="Blues",
-        )
+        sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues")
         plt.xlabel("Predicted Label")
         plt.ylabel("True Label")
-        plt.title(f"Confusion Matrix: TF-IDF, max_features={max_features}")
-        plot_path = FIGURES_DIR / f"confusion_matrix_tfidf_max_{max_features}.png"
-        plt.savefig(plot_path)
+        plt.title(f"Confusion Matrix: {run_name}")
+        plot_path = TFIDF_FIGURES_DIR / f"confusion_matrix_{run_name}.png"
+        plt.savefig(plot_path, bbox_inches="tight")
         plt.close()
         mlflow.log_artifact(str(plot_path))
 
-        # Log model
+        # Log model (for later deployment/registration)
         model_path = f"random_forest_model_tfidf_max_{max_features}"
         mlflow.sklearn.log_model(model, model_path)
 
-        # Save model locally
-        local_model_path = MODELS_DIR / f"{model_path}.pkl"
-        # with open(local_model_path, "wb") as f:
+        # Save the vectorizer and model locally for this specific method
+        # model_path = TFIDF_MODELS_DIR / f"rftfidf_max_{max_features}.pkl"
+        # with open(model_path, "wb") as f:
         #     pickle.dump(model, f)
 
-        # Log vectorizer artifact
+        vectorizer_path = (
+            TFIDF_MODELS_DIR / f"tfidf_vectorizer_max_features_{max_features}.pkl"
+        )
+        with open(vectorizer_path, "wb") as f:
+            pickle.dump(vectorizer, f)
+
         logger.info(
-            f"Experiment finished. MLflow Run ID: {run.info.run_id}; Model saved: {local_model_path}"
+            f"✅ Experiment finished: {run_name} | MLflow Run ID: {run.info.run_id} | Artifacts saved locally to {TFIDF_MODELS_DIR.relative_to(PROJECT_ROOT)}"
         )
 
 
@@ -206,17 +200,19 @@ def main() -> None:
             "max_features_list must be a list of ints and ngram_range_str must be a tuple of ints."
         )
 
-    logger.info(f"Running TF-IDF tuning for max_features: {max_features_values}")
+    logger.info(
+        f"--- Running TF-IDF tuning for max_features: {max_features_values} ---"
+    )
 
     for max_features in max_features_values:
-        run_experiment_tfidf_max_features(
+        run_max_features_experiment(
             max_features=max_features,
             ngram_range=ngram_range,
             n_estimators=args.n_estimators,
             max_depth=args.max_depth,
         )
 
-    logger.info("Tuning complete. View in MLflow UI: mlflow ui")
+    logger.info("--- Max features tuning complete. Analyze results in MLflow UI ---")
 
 
 if __name__ == "__main__":

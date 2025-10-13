@@ -5,7 +5,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
 from scipy.sparse import save_npz, hstack
 from scipy import sparse
-from typing import Tuple, Dict
+from typing import Tuple
 import torch
 from transformers import AutoTokenizer, AutoModel
 import pickle

@@ -1,6 +1,0 @@
-artifact_location: file:///C:/Users/sebas/OneDrive/Desktop/Data_Science/YouTube/05-Free_Code_Camp/YouTube_Sentiment_Analysis/mlruns/986768449317394318
-creation_time: 1759458711660
-experiment_id: '986768449317394318'
-last_update_time: 1759458711660
-lifecycle_stage: active
-name: Baseline Model - Logistic Regression TF-IDF
