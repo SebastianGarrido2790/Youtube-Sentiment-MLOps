@@ -40,9 +40,7 @@ def get_mlflow_uri(params_path: str = "params.yaml") -> str:
     # --- Priority 1: Environment variable (always takes precedence) ---
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
     if mlflow_uri:
-        logger.info(
-            f"[ENV={ENV}] Using MLflow Tracking URI from environment variable: {mlflow_uri}"
-        )
+        logger.info(f"[ENV={ENV}] Using MLflow from environment variable")
         return mlflow_uri
 
     # --- Priority 2: Environment-based defaults ---

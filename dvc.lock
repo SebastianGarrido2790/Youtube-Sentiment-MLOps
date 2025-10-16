@@ -15,8 +15,8 @@ stages:
       size: 2345
     - path: src/utils/paths.py
       hash: md5
-      md5: 5f371b210ba97567dc12fcda4b0ebb56
-      size: 1579
+      md5: 09b7c4d9482ae3428fc2ce03ac156dd0
+      size: 1697
     outs:
     - path: data/raw/reddit_comments.csv
       hash: md5
@@ -40,8 +40,8 @@ stages:
       size: 2345
     - path: src/utils/paths.py
       hash: md5
-      md5: 5f371b210ba97567dc12fcda4b0ebb56
-      size: 1579
+      md5: 09b7c4d9482ae3428fc2ce03ac156dd0
+      size: 1697
     params:
       params.yaml:
         data_preparation.random_state: 42
@@ -179,8 +179,8 @@ stages:
       size: 2345
     - path: src/utils/paths.py
       hash: md5
-      md5: 5f371b210ba97567dc12fcda4b0ebb56
-      size: 1579
+      md5: 09b7c4d9482ae3428fc2ce03ac156dd0
+      size: 1697
     params:
       params.yaml:
         feature_engineering.bert_batch_size: 32
@@ -190,7 +190,7 @@ stages:
     outs:
     - path: models/features/engineered_features/
       hash: md5
-      md5: 603e0cfa4b28c3287bed34738f104385.dir
+      md5: 9c0685d5acbce6013737dc63e42c109e.dir
       size: 3053474
       nfiles: 8
   baseline_model:
@@ -226,8 +226,16 @@ stages:
       size: 44320
     - path: src/models/baseline_logistic.py
       hash: md5
-      md5: faa70695b1e3562d8cb15f6e2f7a312e
-      size: 5548
+      md5: 021bb7da76f0743d83d1e8e93eed3212
+      size: 5048
+    - path: src/models/helpers/data_loader.py
+      hash: md5
+      md5: 0c8d7cb04b1c412b31f477d5e662a372
+      size: 4489
+    - path: src/models/helpers/train_utils.py
+      hash: md5
+      md5: cafe10fd5a739b2862a9ae8d05464749
+      size: 2402
     - path: src/utils/logger.py
       hash: md5
       md5: 73106bb3de64f8ef8c097a990a6e2f49
@@ -238,16 +246,61 @@ stages:
       size: 3318
     - path: src/utils/paths.py
       hash: md5
-      md5: 5f371b210ba97567dc12fcda4b0ebb56
-      size: 1579
-    params:
-      params.yaml:
-        baseline_model.class_weight: balanced
-        baseline_model.max_iter: 2000
-        baseline_model.model_type: LogisticRegression
-        baseline_model.solver: liblinear
+      md5: 09b7c4d9482ae3428fc2ce03ac156dd0
+      size: 1697
     outs:
     - path: models/baseline/logistic_baseline.pkl
       hash: md5
       md5: 1497f360bfba22000460aec99aff86af
       size: 25045
+  train_xgboost:
+    cmd: uv run python -m src.models.xgboost_training
+    deps:
+    - path: models/features/engineered_features/X_train.npz
+      hash: md5
+      md5: 0da3db618a4facc78e97d864e1962590
+      size: 1911617
+    - path: models/features/engineered_features/X_val.npz
+      hash: md5
+      md5: 262666f9552c8532a609e22fbaae5631
+      size: 398166
+    - path: models/features/engineered_features/y_train.npy
+      hash: md5
+      md5: ff2992f566f145e0dabff508b76fd5de
+      size: 206344
+    - path: models/features/engineered_features/y_val.npy
+      hash: md5
+      md5: 6170668e1d3ef3e4b157d5a76a85299e
+      size: 44320
+    - path: src/models/helpers/data_loader.py
+      hash: md5
+      md5: 61210451e18bb9224a8661d01af80b31
+      size: 4547
+    - path: src/models/helpers/train_utils.py
+      hash: md5
+      md5: 2bc0c7c08795a44555e3b39688bc7a79
+      size: 4026
+    - path: src/models/xgboost_training.py
+      hash: md5
+      md5: 054dab122e41c70fb9a480e6be259233
+      size: 4268
+    - path: src/utils/logger.py
+      hash: md5
+      md5: 73106bb3de64f8ef8c097a990a6e2f49
+      size: 2345
+    - path: src/utils/mlflow_config.py
+      hash: md5
+      md5: bfa33930d5de9824f74f0423ac408c86
+      size: 3267
+    params:
+      params.yaml:
+        train.xgboost.n_trials: 30
+    outs:
+    - path: models/advanced/xgboost_best.pkl
+      hash: md5
+      md5: efc03e7617d4a27493489d225230cbaf
+      size: 152
+    - path: models/advanced/xgboost_metrics.json
+      hash: md5
+      md5: 050a6445213cca075c5116f51d3c7435
+      size: 44

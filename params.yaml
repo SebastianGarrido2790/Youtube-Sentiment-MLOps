@@ -37,3 +37,14 @@ baseline_model:
   class_weight: "balanced"
   solver: "liblinear"
   max_iter: 2000
+
+train:
+  xgboost:
+    n_trials: 30
+  lightgbm:
+    n_trials: 30
+  bert:
+    n_trials: 20
+    batch_size: [8, 16, 32]
+    lr: [1e-5, 5e-5]
+    weight_decay: [0.001, 0.1]

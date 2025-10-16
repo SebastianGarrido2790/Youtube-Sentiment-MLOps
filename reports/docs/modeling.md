@@ -108,6 +108,9 @@ The **macro F1 score** is the primary metric for comparing the performance of th
 
 ---
 
+## Imbalance Technique
+### Choosing Between `class_weight="balanced"` and ADASYN for Baseline Logistic Regression
+
 Excellent question — this is precisely the kind of trade-off thinking that separates **experimentation design** from **production MLOps**.
 
 Let’s analyze both options systematically across **four key criteria** relevant to our current stage:
@@ -221,3 +224,120 @@ That way:
 
 ---
 
+| Aspect                   | Benefit                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| **Maintainability**      | Easier to modify or debug one model’s code without affecting others.             |
+| **Performance**          | Only imports required libraries (e.g., BERT’s heavy dependencies stay isolated). |
+| **Pipeline Integration** | Each script can be a separate DVC/MLflow job.                                    |
+| **Testing**              | Each model’s training and data loader can be unit tested independently.          |
+| **CI/CD**                | CI can run tests only for changed components.                                    |
+
+| Feature             | Implementation                                             |
+| ------------------- | ---------------------------------------------------------- |
+| **Reliability**     | Centralized logging, controlled imports, error handling    |
+| **Scalability**     | Independent DVC/CI pipeline stages per model               |
+| **Maintainability** | Shared helper modules (`data_loader.py`, `train_utils.py`) |
+| **Adaptability**    | Easy to add new models or retrain specific ones            |
+| **Reproducibility** | MLflow + Optuna integration with saved parameters          |
+
+---
+
+## Data Handling Consistency AcrossPpipeline Stages
+
+Let’s clarify the design difference between the **baseline model** and the **advanced models**, and why the data loading logic diverges.
+
+---
+
+### 🔹 1. Purpose Difference: Benchmark vs. Optimization
+
+| Model Type                                    | Objective                                                                                  | Data Handling                                                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| **Baseline (Logistic Regression)**            | Establish a *reliable benchmark* that fully represents the data distribution and encoding. | Uses **all splits (train/val/test)** and the **label encoder** for clean benchmarking and reporting across datasets. |
+| **Advanced Models (XGBoost, LightGBM, BERT)** | Optimize for *validation performance* through hyperparameter tuning and resampling.        | Focuses on **train/val** only (test kept untouched). ADASYN is applied on `train` to balance classes dynamically.    |
+
+The **baseline** aims for **end-to-end evaluation**, while **advanced models** are still in the **experimentation phase** — they are not yet “final models,” so we don’t test them against the held-out test set at each trial.
+
+---
+
+### 🔹 2. Why Baseline Uses the Label Encoder (`le`)
+
+The baseline model:
+
+* Operates directly on **encoded labels** (e.g., `[-1, 0, 1] → [0, 1, 2]`),
+* Then decodes them back for **readable reporting** (`Negative`, `Neutral`, `Positive`),
+* Logs per-class F1 metrics to MLflow.
+
+Advanced models don’t need that yet because:
+
+* During tuning, they only need numeric labels for optimization.
+* Label decoding and human-readable metrics come later in the **model evaluation and registration** stage.
+
+---
+
+### 🔹 3. Why Advanced Models Skip the Test Set
+
+Hyperparameter optimization (Optuna) is a **search process**, not a final evaluation:
+
+* Each trial should be scored on a **validation set**, not the test set.
+* The **test set** is reserved for *final model evaluation* after choosing the best parameters.
+* This prevents **information leakage** — using test data during tuning would bias results.
+
+After tuning completes:
+
+1. The best params (`xgboost_best.pkl`, `lightgbm_best.pkl`) are stored.
+2. A **final evaluation script** (e.g., `model_evaluation.py`) loads those parameters,
+   retrains on `train + val`, and evaluates on the **test set** once.
+
+---
+
+### 🔹 4. Architectural Summary
+
+| Model Stage             | Splits Used        | Encoder | Balancing                 | Purpose                     |
+| ----------------------- | ------------------ | ------- | ------------------------- | --------------------------- |
+| **Baseline**            | Train + Val + Test | ✅ Yes   | `class_weight="balanced"` | Reliable benchmark          |
+| **Advanced (XGB/LGBM)** | Train + Val        | ❌ No    | ✅ ADASYN                  | Hyperparameter optimization |
+| **Final Evaluation**    | Train + Val + Test | ✅ Yes   | ✅ (best method)           | Final model registration    |
+
+---
+
+### ✅ Next Step
+
+When you implement the **final evaluation and registration stage** (`src/models/model_evaluation.py`), that script will:
+
+* Reuse the stored best parameters (`*_best.pkl`),
+* Load the **label encoder**,
+* Train on the combined train + val set,
+* Evaluate and log performance on the **test set** for fair comparison with the baseline.
+
+---
+
+### Explanation of MLflow Logging Structure in `xgboost_training.py` and `lightgbm_training.py`
+
+The logging pattern in your script creates a single parent run named "XGBoost_Optuna_Study" and "LightGBM_Optuna_Study" for the entire Optuna hyperparameter search (50 trials), with each individual trial logged as a **nested child run** (e.g., "XGBoost_Trial_0", "XGBoost_Trial_1", etc.). This is a deliberate design choice aligned with MLflow best practices for hyperparameter optimization workflows. Here's a breakdown:
+
+#### Why a Single Parent Run?
+- **Organization and Grouping**: The parent run encapsulates the full study, serving as a high-level container for all trials. This prevents the MLflow UI from being cluttered with 50+ independent runs, making it easier to:
+  - Track the overall experiment (e.g., start/end time, aggregated metrics like "best_val_macro_f1").
+  - Compare studies across models (e.g., XGBoost vs. LightGBM) at the parent level.
+  - Use MLflow's hierarchy: Parent runs provide context (e.g., tags like "experiment_type: advanced_tuning"), while children detail per-trial params/metrics.
+- **Efficiency in Nested Mode**: By setting `nested=True` in the trial's `mlflow.start_run()`, MLflow automatically associates child runs with the active parent. This leverages MLflow's run nesting feature, avoiding manual parent-child linking and ensuring traceability without redundant setup.
+- **Reproducibility and Auditing**: The parent run logs study-level artifacts (e.g., best params via `mlflow.log_params(best_params)`), while trials log granular details (e.g., per-trial F1). This mirrors CRISP-DM's evaluation phase, where the "study" is the meta-experiment.
+
+#### What Gets Logged Where?
+| Level          | Run Name Example          | Contents                                                                 | Purpose |
+|----------------|---------------------------|--------------------------------------------------------------------------|---------|
+| **Parent**    | XGBoost_Optuna_Study      | - Best params/metrics (e.g., `best_val_macro_f1: 0.7508`).<br>- Tags (e.g., "model_type: XGBoost").<br>- Best model artifact (`best_xgboost_model`). | Summarizes the study; enables cross-study comparisons. |
+| **Child (Trials)** | XGBoost_Trial_{n}        | - Trial-specific params (e.g., `max_depth: 8`).<br>- Per-trial metric (`val_macro_f1`).<br>- Trial model artifact (`xgboost_model`). | Details hyperparameter exploration; supports drill-down analysis. |
+
+In the MLflow UI (as shown in your screenshot), the parent "XGBoost_Optuna_Study" appears as the primary run, with child trials expandable under it (via the "Runs" view or search filters like "Run Name contains 'Trial'"). If only the parent is visible at top-level, expand the run tree or filter by tags/experiment.
+
+#### Potential Drawbacks and Alternatives
+- **Visibility**: If trials feel "hidden," switch to flat runs by removing `nested=True`—each trial becomes a top-level sibling under the experiment. However, this increases clutter (50+ runs) and loses hierarchy.
+- **Customization**: For more granularity, add trial artifacts (e.g., Optuna's `plot_param_importances(study)` as a PNG logged via `mlflow.log_artifact` in the parent).
+
+#### Recommendations
+- **Immediate Check**: In MLflow UI, filter runs by "Parent Run ID" matching the study's run ID to view all 50 trials.
+- **Enhancement for Innovation**: Extend `train_utils.py` with a `log_study_summary` function to auto-generate a JSON/CSV of all trial params/metrics, logged as a parent artifact. This enables external analysis (e.g., via Pandas in a notebook) without UI reliance.
+- **DVC Integration**: Since metrics are now in JSON (via `save_metrics_json`), run `dvc metrics diff` post-repro to compare F1 across pipeline versions—practical for model selection.
+
+This structure balances simplicity with depth, prioritizing a clean audit trail. If trials aren't nesting correctly (e.g., due to `mlflow.end_run()` calls), share console output for troubleshooting.

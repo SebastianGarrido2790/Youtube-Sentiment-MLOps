@@ -100,24 +100,81 @@ stages:
       - models/features/engineered_features/
 
   baseline_model:
-      cmd: uv run python -m src.models.baseline_logistic
-      deps:
-        - models/features/engineered_features/X_train.npz
-        - models/features/engineered_features/X_val.npz
-        - models/features/engineered_features/X_test.npz
-        - models/features/engineered_features/y_train.npy
-        - models/features/engineered_features/y_val.npy
-        - models/features/engineered_features/y_test.npy
-        - models/features/engineered_features/label_encoder.pkl
-        - src/models/baseline_logistic.py
-        - src/utils/mlflow_config.py
-        - src/utils/logger.py
-        - src/utils/paths.py
-      params:
-        - baseline_model.model_type
-        - baseline_model.class_weight
-        - baseline_model.solver
-        - baseline_model.max_iter
-      outs:
-        - models/baseline/logistic_baseline.pkl
+    cmd: uv run python -m src.models.baseline_logistic
+    deps:
+      - models/features/engineered_features/X_train.npz
+      - models/features/engineered_features/X_val.npz
+      - models/features/engineered_features/X_test.npz
+      - models/features/engineered_features/y_train.npy
+      - models/features/engineered_features/y_val.npy
+      - models/features/engineered_features/y_test.npy
+      - models/features/engineered_features/label_encoder.pkl
+      - src/models/baseline_logistic.py
+      - src/models/helpers/data_loader.py
+      - src/models/helpers/train_utils.py
+      - src/utils/mlflow_config.py
+      - src/utils/logger.py
+      - src/utils/paths.py
+    outs:
+      - models/baseline/logistic_baseline.pkl
 
+  train_xgboost:
+    cmd: uv run python -m src.models.xgboost_training
+    deps:
+      - src/models/xgboost_training.py
+      - src/models/helpers/data_loader.py
+      - src/models/helpers/train_utils.py
+      - src/utils/mlflow_config.py
+      - src/utils/logger.py
+      - models/features/engineered_features/X_train.npz
+      - models/features/engineered_features/X_val.npz
+      - models/features/engineered_features/y_train.npy
+      - models/features/engineered_features/y_val.npy
+
+    outs:
+      - models/advanced/xgboost_best.pkl
+    params:
+      - train.xgboost.n_trials
+    metrics:
+      - models/advanced/xgboost_metrics.json
+
+  train_lightgbm:
+    cmd: uv run python -m src.models.lightgbm_training
+    deps:
+      - src/models/lightgbm_training.py
+      - src/models/helpers/data_loader.py
+      - src/models/helpers/train_utils.py
+      - src/utils/mlflow_config.py
+      - src/utils/logger.py
+      - models/features/engineered_features/X_train.npz
+      - models/features/engineered_features/X_val.npz
+      - models/features/engineered_features/y_train.npy
+      - models/features/engineered_features/y_val.npy
+    outs:
+      - models/advanced/lightgbm_best.pkl
+    params:
+      - train.lightgbm.n_trials
+    metrics:
+      - models/advanced/lightgbm_metrics.json
+
+  train_bert:
+    cmd: uv run python -m src.models.bert_training
+    deps:
+      - src/models/bert_training.py
+      - src/models/helpers/data_loader.py
+      - src/models/helpers/train_utils.py
+      - src/utils/mlflow_config.py
+      - src/utils/paths.py
+      - src/utils/logger.py
+      - data/processed/train.parquet
+      - data/processed/val.parquet
+    outs:
+      - models/advanced/bert_best.pkl
+      - models/advanced/bert_results
+    params:
+      - train.bert.n_trials
+      - train.bert.batch_size
+      - train.bert.lr
+      - train.bert.weight_decay
+    metrics:
+      - models/advanced/bert_metrics.json

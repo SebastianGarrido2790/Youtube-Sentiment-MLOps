@@ -31,6 +31,8 @@ VAL_PATH = PROCESSED_DATA_DIR / "val.parquet"
 MODELS_DIR = PROJECT_ROOT / "models"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
+FEATURES_DIR = MODELS_DIR / "features"
+ADVANCED_DIR = MODELS_DIR / "advanced"
 
 # --- Logs and MLflow ---
 # Use system-specific log directory if running in production
@@ -49,5 +51,7 @@ for path in [
     REPORTS_DIR,
     FIGURES_DIR,
     LOGS_DIR,
+    FEATURES_DIR,
+    ADVANCED_DIR,
 ]:
     path.mkdir(parents=True, exist_ok=True)

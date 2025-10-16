@@ -13,52 +13,38 @@ Design Considerations:
 - Decoupling: Loads features from .npz/.npy files, independent of feature generation script.
 """
 
-import pickle
-import numpy as np
-from scipy.sparse import load_npz
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 import mlflow
 import mlflow.sklearn
 
 # --- Project Utilities ---
-from src.utils.paths import MODELS_DIR, PROJECT_ROOT
+from src.models.helpers.data_loader import load_feature_data
+from src.models.helpers.train_utils import (
+    log_metrics_to_mlflow,
+    save_model_bundle,
+    setup_experiment,
+)
+from src.utils.paths import MODELS_DIR
 from src.utils.mlflow_config import get_mlflow_uri
 from src.utils.logger import get_logger
 
 # --- Logging Setup ---
 logger = get_logger(__name__, headline="baseline_logistic.py")
 
-# --- MLflow Setup ---
-mlflow_uri = get_mlflow_uri()
-mlflow.set_tracking_uri(mlflow_uri)
-mlflow.set_experiment("Model Training - Baseline Logistic Regression")
-
-# --- Path Setup ---
-FEATURES_DIR = MODELS_DIR / "features" / "engineered_features"
+# --- Paths ---
 BASELINE_MODEL_DIR = MODELS_DIR / "baseline"
 BASELINE_MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def train_baseline() -> None:
-    """
-    Train Logistic Regression with class_weight='balanced' for imbalance handling.
-    Logs to MLflow with consistent stage, metrics, and tagging conventions.
-    """
+    """Train Logistic Regression baseline and log to MLflow."""
 
-    logger.info("Loading engineered features...")
-    X_train = load_npz(FEATURES_DIR / "X_train.npz").tocsr()
-    X_val = load_npz(FEATURES_DIR / "X_val.npz").tocsr()
-    X_test = load_npz(FEATURES_DIR / "X_test.npz").tocsr()
-    y_train = np.load(FEATURES_DIR / "y_train.npy")
-    y_val = np.load(FEATURES_DIR / "y_val.npy")
-    y_test = np.load(FEATURES_DIR / "y_test.npy")
+    # --- Load engineered features using helper ---
+    logger.info("Loading pre-engineered TF-IDF features and labels...")
+    X_train, X_val, X_test, y_train, y_val, y_test, le = load_feature_data()
 
-    with open(FEATURES_DIR / "label_encoder.pkl", "rb") as f:
-        le = pickle.load(f)
-    original_labels = le.classes_  # [-1, 0, 1]
-
-    # --- Model Parameters ---
+    # --- Model Configuration ---
     params = {
         "C": 1.0,
         "max_iter": 2000,
@@ -67,17 +53,20 @@ def train_baseline() -> None:
         "random_state": 42,
     }
 
-    mlflow.end_run()  # ensure no previous run is active
+    # Ensure clean MLflow run state
+    mlflow.end_run()
 
-    with mlflow.start_run(run_name="LogReg_Baseline_TFIDF_Balanced"):
+    with mlflow.start_run(run_name="Baseline_LogReg_TFIDF_Balanced"):
         # --- Tags ---
-        mlflow.set_tag("stage", "model_training")
-        mlflow.set_tag("model_type", "LogisticRegression")
-        mlflow.set_tag("imbalance_method", "class_weight_balanced")
-        mlflow.set_tag("feature_type", "TF-IDF (max_features=1000)")
-        mlflow.set_tag("experiment_type", "baseline_modeling")
-        mlflow.set_tag(
-            "description", "Logistic Regression baseline with class_weight='balanced'"
+        mlflow.set_tags(
+            {
+                "stage": "model_training",
+                "model_type": "LogisticRegression",
+                "imbalance_method": "class_weight_balanced",
+                "feature_type": "TF-IDF (max_features=7000, ngram_range=(1,2))",
+                "experiment_type": "baseline_modeling",
+                "description": "Baseline Logistic Regression with balanced class weights on TF-IDF features",
+            }
         )
 
         # --- Log Parameters ---
@@ -92,11 +81,11 @@ def train_baseline() -> None:
         model = LogisticRegression(**params)
         model.fit(X_train, y_train)
 
-        # --- Predict on Validation & Test ---
+        # --- Predict ---
         y_pred_val = model.predict(X_val)
         y_pred_test = model.predict(X_test)
 
-        # Decode labels back to original {-1, 0, 1}
+        # --- Inverse transform labels ---
         y_val_orig = le.inverse_transform(y_val)
         y_test_orig = le.inverse_transform(y_test)
         y_pred_val_orig = le.inverse_transform(y_pred_val)
@@ -108,36 +97,35 @@ def train_baseline() -> None:
         test_acc = accuracy_score(y_test_orig, y_pred_test_orig)
         test_f1 = f1_score(y_test_orig, y_pred_test_orig, average="macro")
 
-        # Log aggregate metrics
-        mlflow.log_metric("val_accuracy", val_acc)
-        mlflow.log_metric("val_macro_f1", val_f1)
-        mlflow.log_metric("test_accuracy", test_acc)
-        mlflow.log_metric("test_macro_f1", test_f1)
+        # --- Log metrics via helper ---
+        log_metrics_to_mlflow(
+            {
+                "val_accuracy": val_acc,
+                "val_macro_f1": val_f1,
+                "test_accuracy": test_acc,
+                "test_macro_f1": test_f1,
+            }
+        )
 
-        # Log detailed per-class F1 on test set
+        # --- Per-class F1 breakdown ---
         report = classification_report(y_test_orig, y_pred_test_orig, output_dict=True)
-        for label in original_labels:
-            mlflow.log_metric(f"test_f1_{label}", report[str(label)]["f1-score"])
+        for label, metrics in report.items():
+            if label not in ("accuracy", "macro avg", "weighted avg"):
+                mlflow.log_metric(f"test_f1_{label}", metrics["f1-score"])
 
         logger.info(
-            f"✅ Baseline Logistic Regression completed | "
-            f"Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}, "
-            f"Test Acc: {test_acc:.4f}, Test F1: {test_f1:.4f}"
+            f"✅ Logistic Regression baseline complete | "
+            f"Val F1: {val_f1:.4f}, Test F1: {test_f1:.4f}"
         )
 
-        # --- Log Model Bundle to MLflow ---
+        # --- Log Model Bundle ---
         model_bundle = {"model": model, "encoder": le}
-        mlflow.sklearn.log_model(
-            sk_model=model_bundle,
-            artifact_path="model",
-        )
+        mlflow.sklearn.log_model(sk_model=model_bundle, artifact_path="model")
 
         # --- Save Locally for DVC Tracking ---
-        local_path = BASELINE_MODEL_DIR / "logistic_baseline.pkl"
-        with open(local_path, "wb") as f:
-            pickle.dump(model_bundle, f)
-        logger.info(
-            f"Model bundle saved locally to: {local_path.relative_to(PROJECT_ROOT)}"
+        save_model_bundle(
+            model_bundle=model_bundle,
+            save_path=BASELINE_MODEL_DIR / "logistic_baseline.pkl",
         )
 
         logger.info(
@@ -147,4 +135,8 @@ def train_baseline() -> None:
 
 if __name__ == "__main__":
     logger.info("🚀 Starting baseline Logistic Regression training...")
+
+    # --- MLflow Setup ---
+    mlflow_uri = get_mlflow_uri()
+    setup_experiment("Model Training - Baseline Logistic Regression", mlflow_uri)
     train_baseline()
