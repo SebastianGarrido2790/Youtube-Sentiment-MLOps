@@ -27,12 +27,13 @@ TRAIN_PATH = PROCESSED_DATA_DIR / "train.parquet"
 TEST_PATH = PROCESSED_DATA_DIR / "test.parquet"
 VAL_PATH = PROCESSED_DATA_DIR / "val.parquet"
 
-# --- Model, Reports, and Artifacts ---
+# --- Model, Reports, Evaluation, and Artifacts ---
 MODELS_DIR = PROJECT_ROOT / "models"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 FEATURES_DIR = MODELS_DIR / "features"
 ADVANCED_DIR = MODELS_DIR / "advanced"
+EVAL_DIR = ADVANCED_DIR / "evaluation"
 
 # --- Logs and MLflow ---
 # Use system-specific log directory if running in production
@@ -53,5 +54,6 @@ for path in [
     LOGS_DIR,
     FEATURES_DIR,
     ADVANCED_DIR,
+    EVAL_DIR,
 ]:
     path.mkdir(parents=True, exist_ok=True)

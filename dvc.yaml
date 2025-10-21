@@ -222,6 +222,21 @@ stages:
       - models/features/label_encoder.pkl 
     outs:
       # Output file for the next stage (registration)
-      - models/advanced/lightgbm_evaluation_run.json
+      - models/advanced/evaluation/lightgbm_evaluation_run.json
     metrics:
-      - models/advanced/lightgbm_test_metrics.json  # DVC tracks test F1 score
+      - models/advanced/evaluation/lightgbm_test_metrics.json  # DVC tracks test F1 score
+
+  model_registration:
+    cmd: uv run python -m src.models.register_model
+    deps:
+      - src/models/register_model.py
+      - src/utils/logger.py
+      - src/utils/mlflow_config.py
+      - src/utils/paths.py
+      - models/advanced/evaluation/  # Watch all evaluated models automatically
+    params:
+      - register.f1_threshold
+    
+
+
+

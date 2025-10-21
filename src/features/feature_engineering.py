@@ -7,7 +7,7 @@ NumPy arrays for efficient downstream modeling. Supports both TF-IDF and BERT
 representations, along with simple derived features. Integrates with MLOps via logging and paths.
 
 Saves feature matrices as compressed NumPy sparse arrays (.npz) and labels
-as NumPy arrays (.npy) to the models/features/engineered_features directory.
+as NumPy arrays (.npy) to the models/features directory.
 
 Usage (DVC pulls parameters from params.yaml):
     uv run python -m src.features.feature_engineering --use_bert False --max_features 1000 --ngram_range (1,1)
@@ -23,7 +23,7 @@ Design Goals:
     - Adaptability: Easily switch vectorization techniques or feature sets.
 
 Outputs:
-    models/features/engineered_features
+    models/features
         ├── X_train.npz / y_train.npy
         ├── X_val.npz   / y_val.npy
         ├── X_test.npz  / y_test.npy
@@ -270,7 +270,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate final feature set using best parameters."
     )
-    # Note: DVC will pass the best parameters found in the previous stages here
+    # NOTE: DVC will pass the best parameters found in the previous stages here
     parser.add_argument(
         "--use_bert",
         type=lambda x: x.lower() == "true",

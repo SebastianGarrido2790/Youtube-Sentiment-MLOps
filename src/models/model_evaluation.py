@@ -24,7 +24,7 @@ import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
 
 # --- Project Utilities ---
-from src.utils.paths import ADVANCED_DIR, FIGURES_DIR, PROJECT_ROOT
+from src.utils.paths import ADVANCED_DIR, EVAL_DIR, PROJECT_ROOT
 from src.utils.logger import get_logger
 from src.utils.mlflow_config import get_mlflow_uri
 from src.models.helpers.data_loader import load_feature_data
@@ -81,8 +81,7 @@ def evaluate_model(model, X_test, y_test):
 
 def log_confusion_matrix_as_artifact(cm: np.ndarray, model_name: str, labels: list):
     """Generate, save, and log confusion matrix plot to MLflow."""
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    file_path = FIGURES_DIR / f"{model_name}_confusion_matrix.png"
+    file_path = EVAL_DIR / f"{model_name}_confusion_matrix.png"
 
     plt.figure(figsize=(8, 6))
     sns.heatmap(
@@ -104,7 +103,7 @@ def log_confusion_matrix_as_artifact(cm: np.ndarray, model_name: str, labels: li
 
 def save_test_metrics_json(model_name: str, report: dict):
     """Save the primary test metric (macro F1) to a JSON file for DVC metrics tracking."""
-    filepath = ADVANCED_DIR / f"{model_name}_test_metrics.json"
+    filepath = EVAL_DIR / f"{model_name}_test_metrics.json"
 
     macro_f1 = report["macro avg"]["f1-score"]
 
@@ -121,7 +120,7 @@ def save_test_metrics_json(model_name: str, report: dict):
 
 def save_best_model_run_info(run_id: str, model_name: str):
     """Save the evaluation run ID and model name to a JSON file for the next stage (registration)."""
-    filepath = ADVANCED_DIR / f"{model_name}_evaluation_run.json"
+    filepath = EVAL_DIR / f"{model_name}_evaluation_run.json"
     model_info = {"evaluation_run_id": run_id, "model_name": model_name}
     with open(filepath, "w") as file:
         json.dump(model_info, file, indent=4)

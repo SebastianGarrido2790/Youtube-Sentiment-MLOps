@@ -2,12 +2,6 @@
 Data loading and preprocessing utilities for all model training scripts.
 Handles both TF-IDF (sparse) and text-based datasets, with ADASYN support for imbalance correction.
 All models read from the canonical `models/advanced/` directory.
-
-Design Principles:
-- Reliability: Validates file existence and logs dataset shapes.
-- Scalability: Uses sparse matrices for efficient memory use.
-- Maintainability: Centralized and consistent across all models.
-- Adaptability: Supports both feature-based and text-based models.
 """
 
 import numpy as np

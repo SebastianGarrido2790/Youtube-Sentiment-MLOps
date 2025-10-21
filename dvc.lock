@@ -14,8 +14,8 @@ stages:
       size: 2345
     - path: src/utils/paths.py
       hash: md5
-      md5: 09b7c4d9482ae3428fc2ce03ac156dd0
-      size: 1697
+      md5: c723fe5c11d3e4920067ff204eb5a6f5
+      size: 1764
     outs:
     - path: data/raw/reddit_comments.csv
       hash: md5
@@ -39,8 +39,8 @@ stages:
       size: 2345
     - path: src/utils/paths.py
       hash: md5
-      md5: 09b7c4d9482ae3428fc2ce03ac156dd0
-      size: 1697
+      md5: c723fe5c11d3e4920067ff204eb5a6f5
+      size: 1764
     params:
       params.yaml:
         data_preparation.random_state: 42
@@ -150,8 +150,8 @@ stages:
       size: 499418
     - path: src/features/feature_engineering.py
       hash: md5
-      md5: cc338c8fa397fd1f9514c1654dbc3f39
-      size: 12510
+      md5: 75f9febc394686d67e0d6a6581b04540
+      size: 12470
     - path: src/features/helpers/feature_utils.py
       hash: md5
       md5: e0f9947d31fadd92c998640dda59a078
@@ -162,8 +162,8 @@ stages:
       size: 2345
     - path: src/utils/paths.py
       hash: md5
-      md5: 09b7c4d9482ae3428fc2ce03ac156dd0
-      size: 1697
+      md5: c723fe5c11d3e4920067ff204eb5a6f5
+      size: 1764
     params:
       params.yaml:
         feature_engineering.bert_batch_size: 32
@@ -173,7 +173,7 @@ stages:
     outs:
     - path: models/features/
       hash: md5
-      md5: da276d031a5b0c52090e43eed79c6f62.dir
+      md5: 97010c081cc5a1e32f15604753fe7060.dir
       size: 3053474
       nfiles: 8
   baseline_model:
@@ -257,8 +257,8 @@ stages:
       size: 44320
     - path: src/models/helpers/data_loader.py
       hash: md5
-      md5: ed7a732ccaefe915ad74a0a0e81efea0
-      size: 4435
+      md5: 7a89b90d5c30a18dd6288af65d98984e
+      size: 4150
     - path: src/models/helpers/train_utils.py
       hash: md5
       md5: d13157debc27d5f22d5d7a3b3d9b80ca
@@ -281,12 +281,12 @@ stages:
     outs:
     - path: models/advanced/xgboost_metrics.json
       hash: md5
-      md5: 6e34bc3d88060d4c6ca2c4431a9d12d4
+      md5: da2e6089ef4ca3916d0cf23ac6ce139a
       size: 44
     - path: models/advanced/xgboost_model.pkl
       hash: md5
-      md5: 9fd447e53d76b4f1ba16c5db1a87fbea
-      size: 587262
+      md5: 56bb60c3f6f67b73a8114b061772bd3b
+      size: 875838
   imbalance_tuning:
     cmd: "uv run python -m src.features.imbalance_tuning  --imbalance_methods \"['class_weights','oversampling','adasyn','undersampling','smote_enn']\"\
       \  --max_features 1000  --ngram_range (1,1)  --n_estimators 200  --max_depth
@@ -350,8 +350,8 @@ stages:
       size: 44320
     - path: src/models/helpers/data_loader.py
       hash: md5
-      md5: ed7a732ccaefe915ad74a0a0e81efea0
-      size: 4435
+      md5: 7a89b90d5c30a18dd6288af65d98984e
+      size: 4150
     - path: src/models/helpers/train_utils.py
       hash: md5
       md5: d13157debc27d5f22d5d7a3b3d9b80ca
@@ -374,19 +374,19 @@ stages:
     outs:
     - path: models/advanced/lightgbm_metrics.json
       hash: md5
-      md5: 73a118e2a78e06e75d6e0272d9f3f9f9
-      size: 44
+      md5: 3ce4ac967532a1e7abcc9b3f6c488870
+      size: 43
     - path: models/advanced/lightgbm_model.pkl
       hash: md5
-      md5: 0966bee0fd48be0c0811dc4b429f23ac
-      size: 2424362
+      md5: 30dd8ad73d456d7bec028ca8b84afa86
+      size: 1230665
   model_evaluation:
     cmd: uv run python -m src.models.model_evaluation
     deps:
     - path: models/advanced/lightgbm_model.pkl
       hash: md5
-      md5: 0966bee0fd48be0c0811dc4b429f23ac
-      size: 2424362
+      md5: 30dd8ad73d456d7bec028ca8b84afa86
+      size: 1230665
     - path: models/features/X_test.npz
       hash: md5
       md5: 5ad9362bddb9771a265e72d40a3e568c
@@ -401,16 +401,16 @@ stages:
       size: 44320
     - path: src/models/helpers/data_loader.py
       hash: md5
-      md5: ed7a732ccaefe915ad74a0a0e81efea0
-      size: 4435
+      md5: 7a89b90d5c30a18dd6288af65d98984e
+      size: 4150
     - path: src/models/helpers/train_utils.py
       hash: md5
       md5: d13157debc27d5f22d5d7a3b3d9b80ca
       size: 4602
     - path: src/models/model_evaluation.py
       hash: md5
-      md5: d68e1c53450f20c45857d4d48dfc5471
-      size: 7869
+      md5: 63a66caac50c577682daef80aaa179eb
+      size: 7803
     - path: src/utils/logger.py
       hash: md5
       md5: 73106bb3de64f8ef8c097a990a6e2f49
@@ -421,14 +421,108 @@ stages:
       size: 3563
     - path: src/utils/paths.py
       hash: md5
-      md5: 09b7c4d9482ae3428fc2ce03ac156dd0
-      size: 1697
+      md5: c723fe5c11d3e4920067ff204eb5a6f5
+      size: 1764
     outs:
-    - path: models/advanced/lightgbm_evaluation_run.json
+    - path: models/advanced/evaluation/lightgbm_evaluation_run.json
       hash: md5
-      md5: 4bac51bd0f51223b696ed3eaea1a6292
+      md5: 2d67009a71d4f8db17b27dde50b6d619
       size: 96
-    - path: models/advanced/lightgbm_test_metrics.json
+    - path: models/advanced/evaluation/lightgbm_test_metrics.json
       hash: md5
-      md5: b790ef52f9024e46ca1c12fb7b5d276d
+      md5: 6c4a808444a419cddc409e116b8c4e51
       size: 45
+  train_bert:
+    cmd: uv run python -m src.models.bert_training
+    deps:
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: ef9df44b106362663b835efdefe950c3
+      size: 2394224
+    - path: data/processed/val.parquet
+      hash: md5
+      md5: c55232be629f4fba0cdc3cce4329c594
+      size: 499418
+    - path: src/models/bert_training.py
+      hash: md5
+      md5: fe3e847d759047a8a560b72519cfb8e7
+      size: 6080
+    - path: src/models/helpers/data_loader.py
+      hash: md5
+      md5: 7a89b90d5c30a18dd6288af65d98984e
+      size: 4150
+    - path: src/models/helpers/train_utils.py
+      hash: md5
+      md5: d13157debc27d5f22d5d7a3b3d9b80ca
+      size: 4602
+    - path: src/utils/logger.py
+      hash: md5
+      md5: 73106bb3de64f8ef8c097a990a6e2f49
+      size: 2345
+    - path: src/utils/mlflow_config.py
+      hash: md5
+      md5: 574d3286ad7a9eaa2d541a333fc6768a
+      size: 3563
+    - path: src/utils/paths.py
+      hash: md5
+      md5: c723fe5c11d3e4920067ff204eb5a6f5
+      size: 1764
+    params:
+      params.yaml:
+        train.bert.batch_size:
+        - 8
+        - 16
+        - 32
+        train.bert.lr:
+        - 1e-05
+        - 5e-05
+        train.bert.n_trials: 20
+        train.bert.weight_decay:
+        - 0.001
+        - 0.1
+    outs:
+    - path: models/advanced/bert_metrics.json
+      hash: md5
+      md5: dc0d9ce7dab44784d6f81ab8636b646e
+      size: 22
+    - path: models/advanced/bert_model.pkl
+      hash: md5
+      md5: d41d8cd98f00b204e9800998ecf8427e
+      size: 0
+    - path: models/advanced/bert_results
+      hash: md5
+      md5: d751713988987e9331980363e24189ce.dir
+      size: 0
+      nfiles: 0
+  model_registration:
+    cmd: uv run python -m src.models.register_model
+    deps:
+    - path: models/advanced/evaluation/
+      hash: md5
+      md5: 04bd7e1c49788e4f54e1e7e78a559655.dir
+      size: 24106
+      nfiles: 3
+    - path: src/models/register_model.py
+      hash: md5
+      md5: 1fe09b3da09f59ee6ace85eb2e570a1c
+      size: 7347
+    - path: src/utils/logger.py
+      hash: md5
+      md5: 73106bb3de64f8ef8c097a990a6e2f49
+      size: 2345
+    - path: src/utils/mlflow_config.py
+      hash: md5
+      md5: 574d3286ad7a9eaa2d541a333fc6768a
+      size: 3563
+    - path: src/utils/paths.py
+      hash: md5
+      md5: c723fe5c11d3e4920067ff204eb5a6f5
+      size: 1764
+    params:
+      params.yaml:
+        register.f1_threshold: 0.75
+    outs:
+    - path: logs/experiments.log
+      hash: md5
+      md5: b3531cb2cf141eb6d5b59471221268ca
+      size: 1257
