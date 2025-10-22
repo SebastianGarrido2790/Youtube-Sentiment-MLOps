@@ -10,10 +10,6 @@ if __name__ == "__main__" allows the script to be run directly:
 Or via Uvicorn:
     uv run uvicorn src.models.app.predict_model:app --reload --port 8000
 
-Endpoints:
-    GET  /           - Health check endpoint.
-    POST /predict    - Predict sentiment for input texts.
-
 Test with cURL or HTTP client:
     curl -X POST "http://127.0.0.1:8000/predict" `
      -H "Content-Type: application/json" `
@@ -36,6 +32,7 @@ Verify the API is Live:
     Swagger UI: 👉 http://127.0.0.1:8000/docs
     → You can test predictions interactively here.
     ReDoc (read-only): 👉 http://127.0.0.1:8000/redoc
+
 If everything is configured properly, you should see your /predict endpoint documented.
 """
 
