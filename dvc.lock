@@ -225,8 +225,8 @@ stages:
       size: 2345
     - path: src/utils/mlflow_config.py
       hash: md5
-      md5: 237bb1828a6d276380975b5777cc5d36
-      size: 4932
+      md5: 84fe1a1f71567d2cd5522fe674160f25
+      size: 4869
     - path: src/utils/paths.py
       hash: md5
       md5: c723fe5c11d3e4920067ff204eb5a6f5

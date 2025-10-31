@@ -28,7 +28,6 @@ NOTE:
 """
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 from scipy.sparse import hstack
@@ -43,16 +42,6 @@ from app.inference_utils import load_production_model, build_derived_features
 logger = get_logger(__name__, headline="predict_model.py")
 
 app = FastAPI(title="YouTube Sentiment Prediction API", version="1.0")
-
-# ============================================================
-# Allow CORS from browser extension
-# ============================================================
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ============================================================
 # Artifact Loading (Run on startup only)
