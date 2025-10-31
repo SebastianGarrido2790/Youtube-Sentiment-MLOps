@@ -38,8 +38,9 @@ data/processed/**/
 reports/figures/tfidf_vs_bert/
 models/features/
 
-# MLflow runs
+# MLflow runs and artifacts
 mlruns/
+mlartifacts/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
