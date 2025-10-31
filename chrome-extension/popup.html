@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>YouTube Sentiment Insights</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>YouTube Sentiment Insights</h1>
+      <small id="video-status">No video detected</small>
+      <small id="videoId" style="display: none; color: var(--muted); font-style: italic;"></small>
+    </header>
+
+    <!-- ======================= -->
+    <!-- CONTROL SECTION -->
+    <!-- ======================= -->
+    <section class="controls">
+      <label for="numComments">Comments to analyze:</label>
+      <input id="numComments" type="number" min="10" max="1000" value="100" />
+      <label>
+        <input id="loadMore" type="checkbox" checked />
+        Attempt to load more comments (scroll)
+      </label>
+      <button id="analyzeBtn">Analyze Comments</button>
+    </section>
+
+    <!-- ======================= -->
+    <!-- LOADING STATE -->
+    <!-- ======================= -->
+    <section id="loading" class="hidden">
+      <div class="spinner"></div>
+      <div id="loadingText">Analyzing comments...</div>
+    </section>
+
+    <!-- ======================= -->
+    <!-- RESULTS SECTION -->
+    <!-- ======================= -->
+    <section id="results" class="hidden">
+      <!-- Basic Summary -->
+      <div class="summary">
+        <div><strong>Total Comments:</strong> <span id="totalCommentsSummary">0</span></div>
+        <div id="breakdownText"></div>
+      </div>
+
+      <!-- Detailed Summary -->
+      <div id="summary">
+        <h4>Comment Analysis Summary</h4>
+        <div class="summary-grid">
+          <div><strong>Total Comments:</strong> <span id="totalCount">0</span></div>
+          <div><strong>Unique Commenters:</strong> <span id="uniqueCommenters">0</span></div>
+          <div><strong>Avg Comment Length:</strong> <span id="avgLen">0</span> words</div>
+          <div><strong>Avg Sentiment Score:</strong> <span id="avgSentiment">0</span>/10</div>
+        </div>
+      </div>
+
+      <!-- Sentiment Distribution Chart -->
+      <div class="chart-section">
+        <h5>Sentiment Distribution</h5>
+        <img id="pieChartImg" src="" alt="Sentiment Pie Chart" style="width: 100%; height: auto; display: none; border-radius: 8px;" />
+      </div>
+
+      <!-- Legend -->
+      <div id="legend" class="legend"></div>
+
+      <!-- Wordcloud -->
+      <div class="chart-section">
+        <h5>Comment Wordcloud</h5>
+        <img id="wordcloudImg" src="" alt="Wordcloud" style="width: 100%; height: 120px; display: none; border-radius: 8px;" />
+      </div>
+
+      <!-- Trend Graph -->
+      <div class="chart-section">
+        <h5>Sentiment Trend Over Time</h5>
+        <img id="trendGraphImg" src="" alt="Sentiment Trend Graph" style="width: 100%; height: 120px; display: none; border-radius: 8px;" />
+      </div>
+
+      <!-- Top Comments -->
+      <div class="top-comments-section">
+        <h5>Top 25 Comments with Sentiments</h5>
+        <ul id="topComments" style="list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; font-size: 11px;"></ul>
+      </div>
+
+      <!-- Raw JSON Preview (Hidden) -->
+      <pre id="rawPreview" class="raw-preview hidden"></pre>
+    </section>
+
+    <!-- ======================= -->
+    <!-- ERROR SECTION -->
+    <!-- ======================= -->
+    <section id="error" class="hidden error"></section>
+
+    <!-- ======================= -->
+    <!-- FOOTER -->
+    <!-- ======================= -->
+    <footer>
+      <small>Insights API: <span id="backendUrl">http://127.0.0.1:8001</span></small>
+    </footer>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

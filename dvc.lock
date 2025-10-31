@@ -225,8 +225,8 @@ stages:
       size: 2345
     - path: src/utils/mlflow_config.py
       hash: md5
-      md5: 574d3286ad7a9eaa2d541a333fc6768a
-      size: 3563
+      md5: 237bb1828a6d276380975b5777cc5d36
+      size: 4932
     - path: src/utils/paths.py
       hash: md5
       md5: c723fe5c11d3e4920067ff204eb5a6f5
@@ -234,8 +234,8 @@ stages:
     outs:
     - path: models/baseline/logistic_baseline.pkl
       hash: md5
-      md5: 1497f360bfba22000460aec99aff86af
-      size: 25045
+      md5: 044600b82899fb34284a4867eecf3c7e
+      size: 25056
   train_xgboost:
     cmd: uv run python -m src.models.xgboost_training
     deps:
@@ -273,20 +273,20 @@ stages:
       size: 2345
     - path: src/utils/mlflow_config.py
       hash: md5
-      md5: 574d3286ad7a9eaa2d541a333fc6768a
-      size: 3563
+      md5: 237bb1828a6d276380975b5777cc5d36
+      size: 4932
     params:
       params.yaml:
         train.xgboost.n_trials: 30
     outs:
     - path: models/advanced/xgboost_metrics.json
       hash: md5
-      md5: da2e6089ef4ca3916d0cf23ac6ce139a
+      md5: ce0e372bcb11e85fd18fb38c9d624b45
       size: 44
     - path: models/advanced/xgboost_model.pkl
       hash: md5
-      md5: 56bb60c3f6f67b73a8114b061772bd3b
-      size: 875838
+      md5: 3a3d951fee9a947aab6d755dafcee95f
+      size: 844289
   imbalance_tuning:
     cmd: "uv run python -m src.features.imbalance_tuning  --imbalance_methods \"['class_weights','oversampling','adasyn','undersampling','smote_enn']\"\
       \  --max_features 1000  --ngram_range (1,1)  --n_estimators 200  --max_depth
@@ -366,27 +366,27 @@ stages:
       size: 2345
     - path: src/utils/mlflow_config.py
       hash: md5
-      md5: 574d3286ad7a9eaa2d541a333fc6768a
-      size: 3563
+      md5: 237bb1828a6d276380975b5777cc5d36
+      size: 4932
     params:
       params.yaml:
         train.lightgbm.n_trials: 30
     outs:
     - path: models/advanced/lightgbm_metrics.json
       hash: md5
-      md5: 3ce4ac967532a1e7abcc9b3f6c488870
-      size: 43
+      md5: 20becd51d8566e21aef9cd6b87db7766
+      size: 44
     - path: models/advanced/lightgbm_model.pkl
       hash: md5
-      md5: 30dd8ad73d456d7bec028ca8b84afa86
-      size: 1230665
+      md5: fe396af7977de5ca77520ff86b4694d2
+      size: 1966413
   model_evaluation:
     cmd: uv run python -m src.models.model_evaluation
     deps:
     - path: models/advanced/lightgbm_model.pkl
       hash: md5
-      md5: 30dd8ad73d456d7bec028ca8b84afa86
-      size: 1230665
+      md5: fe396af7977de5ca77520ff86b4694d2
+      size: 1966413
     - path: models/features/X_test.npz
       hash: md5
       md5: 5ad9362bddb9771a265e72d40a3e568c
@@ -417,8 +417,8 @@ stages:
       size: 2345
     - path: src/utils/mlflow_config.py
       hash: md5
-      md5: 574d3286ad7a9eaa2d541a333fc6768a
-      size: 3563
+      md5: 237bb1828a6d276380975b5777cc5d36
+      size: 4932
     - path: src/utils/paths.py
       hash: md5
       md5: c723fe5c11d3e4920067ff204eb5a6f5
@@ -426,11 +426,11 @@ stages:
     outs:
     - path: models/advanced/evaluation/lightgbm_evaluation_run.json
       hash: md5
-      md5: 63b99931a3bd631b73da43ea780912f0
+      md5: 2a2367a16a8925286c1f2f6324e09d13
       size: 96
     - path: models/advanced/evaluation/lightgbm_test_metrics.json
       hash: md5
-      md5: 6c4a808444a419cddc409e116b8c4e51
+      md5: f1768ebf0e65179d86d06fa040ddc295
       size: 45
   train_bert:
     cmd: uv run python -m src.models.bert_training
@@ -461,8 +461,8 @@ stages:
       size: 2345
     - path: src/utils/mlflow_config.py
       hash: md5
-      md5: 574d3286ad7a9eaa2d541a333fc6768a
-      size: 3563
+      md5: 237bb1828a6d276380975b5777cc5d36
+      size: 4932
     - path: src/utils/paths.py
       hash: md5
       md5: c723fe5c11d3e4920067ff204eb5a6f5
@@ -499,8 +499,8 @@ stages:
     deps:
     - path: models/advanced/evaluation/
       hash: md5
-      md5: ed89ea730c2ac67dd233ee9d74ef5714.dir
-      size: 28858
+      md5: 81cf13b42a31c0bcfe760e50e11f5885.dir
+      size: 29122
       nfiles: 4
     - path: src/models/register_model.py
       hash: md5
@@ -512,8 +512,8 @@ stages:
       size: 2345
     - path: src/utils/mlflow_config.py
       hash: md5
-      md5: 574d3286ad7a9eaa2d541a333fc6768a
-      size: 3563
+      md5: 237bb1828a6d276380975b5777cc5d36
+      size: 4932
     - path: src/utils/paths.py
       hash: md5
       md5: c723fe5c11d3e4920067ff204eb5a6f5

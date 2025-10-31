@@ -1,12 +1,40 @@
 """
 Utility functions for MLflow configuration across modules.
 Fully environment-aware, using ENV loaded from src.utils.paths.
+
+================================================================
+
+How to connect your inference pipeline correctly (app/predict_model.py)?
+
+In the case that your logs show:
+⚠️ MLflow registry unavailable or no Production model found
+even though your MLflow UI clearly lists a Production model version at http://127.0.0.1:5000/
+means that your FastAPI inference process isn’t successfully connecting to the same tracking server instance that MLflow UI is serving.
+
+To correctly run with a registry-enabled backend, you can use an SQLite database (`sqlite:///mlflow.db`).
+
+Start MLflow with the correct parameters:
+
+mlflow server `
+    --backend-store-uri sqlite:///mlflow.db `
+    --default-artifact-root ./mlruns `
+    --host 127.0.0.1 `
+    --port 5000
+
+This command:
+
+* Initializes a SQL database (`mlflow.db`) containing all tracking and registry metadata.
+* Creates ./mlruns for storing artifacts (model files, metrics, etc.).
+* Exposes a REST server at http://127.0.0.1:5000, which now supports:
+  * /api/2.0/mlflow/... endpoints (for tracking)
+  * /api/2.0/mlflow/registered-models/... endpoints (for model registry)
+
+Hence, the "⚠️ MLflow registry unavailable" warning will now disappear, as soon as your FastAPI inference service connects to the same server.
 """
 
 import os
 import yaml
 from pathlib import Path
-
 from src.utils.paths import ENV  # Centralized environment detection
 from src.utils.logger import get_logger  # Centralized logging
 
@@ -43,7 +71,7 @@ def get_mlflow_uri(params_path: str = "params.yaml") -> str:
     # --- Priority 1: Environment variable (always takes precedence) ---
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
     if mlflow_uri:
-        logger.info(f"[ENV={ENV}] Using MLflow from environment variable")
+        logger.info(f"[ENV={ENV}] Using MLflow from environment variable)")
         return mlflow_uri
 
     # --- Priority 2: Environment-based defaults ---
