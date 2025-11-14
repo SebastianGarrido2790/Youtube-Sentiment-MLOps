@@ -20,21 +20,17 @@ import mlflow.sklearn
 
 # --- Project Utilities ---
 from src.models.helpers.data_loader import load_feature_data
-from src.models.helpers.train_utils import (
+from src.models.helpers.train_utils import save_model_bundle
+from src.models.helpers.mlflow_tracking_utils import (
     log_metrics_to_mlflow,
-    save_model_bundle,
     setup_experiment,
 )
-from src.utils.paths import MODELS_DIR
+from src.utils.paths import BASELINE_MODEL_DIR
 from src.utils.mlflow_config import get_mlflow_uri
 from src.utils.logger import get_logger
 
 # --- Logging Setup ---
-logger = get_logger(__name__, headline="baseline_logistic.py")
-
-# --- Paths ---
-BASELINE_MODEL_DIR = MODELS_DIR / "baseline"
-BASELINE_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+logger = get_logger(__name__, headline="baseline_logistic_training.py")
 
 
 def train_baseline() -> None:

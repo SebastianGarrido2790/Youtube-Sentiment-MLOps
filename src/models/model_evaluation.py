@@ -1,38 +1,57 @@
 """
-Model Evaluation Script for Selected Best Model (LightGBM).
+Comparative Model Evaluation Script.
 
-Evaluates the best LightGBM model on the test set, logs metrics to MLflow,
-saves artifacts (e.g., confusion matrix, JSON metrics), and infers model signature.
+Evaluates a list of "champion" models (e.g., LightGBM, XGBoost) on the
+independent test set using their best hyperparameters (as saved model artifacts).
+
+This script is designed for scalability and can evaluate any number of models
+passed via the command line.
+
+It logs to MLflow in a structured way:
+- A single Parent Run for the comparison.
+- A Child Run for each model, containing its specific metrics and artifacts.
+- A comparative ROC curve artifact logged to the Parent Run.
 
 Usage:
-    uv run python -m src.models.model_evaluation
-
-Design Considerations:
-- Reliability: Uses pre-loaded features/labels; validates inputs.
-- Scalability: Sparse matrix support; batched predictions if needed.
-- Maintainability: Leverages shared helpers (data_loader, train_utils); centralized logging/MLflow.
-- Adaptability: Parameterized model selection; extensible to other models.
+    uv run python -m src.models.model_evaluation --models lightgbm xgboost
 """
 
-import numpy as np
+import argparse
 import pickle
 import json
-import mlflow
-import mlflow.lightgbm  # Use LightGBM-specific logging
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import classification_report, confusion_matrix
+from itertools import cycle
+
+# --- ML/Scikit-learn Imports ---
+import mlflow
+import mlflow.lightgbm
+import mlflow.xgboost
+import xgboost as xgb
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    roc_curve,
+    auc,
+    roc_auc_score,
+)
+from sklearn.preprocessing import LabelBinarizer
 
 # --- Project Utilities ---
-from src.utils.paths import ADVANCED_DIR, EVAL_DIR, PROJECT_ROOT
+from src.utils.paths import ADVANCED_DIR, EVAL_FIG_DIR, PROJECT_ROOT
 from src.utils.logger import get_logger
 from src.utils.mlflow_config import get_mlflow_uri
 from src.models.helpers.data_loader import load_feature_data
-from src.models.helpers.train_utils import setup_experiment, log_metrics_to_mlflow
+from src.models.helpers.train_utils import save_test_metrics_json
+from src.models.helpers.mlflow_tracking_utils import (
+    setup_experiment,
+    log_metrics_to_mlflow,
+    log_confusion_matrix_as_artifact,
+)
 
 # --- Configuration ---
-MODEL_NAME = "lightgbm"
-EXPERIMENT_NAME = "Model Evaluation - LightGBM Test Set"
+EXPERIMENT_NAME = "Final Model Evaluation - Test Set"
 
 # --- Logging Setup (using centralized utility) ---
 logger = get_logger(__name__, headline="model_evaluation.py")
@@ -41,11 +60,8 @@ logger = get_logger(__name__, headline="model_evaluation.py")
 # =====================================================================
 #  Core Helper Functions
 # =====================================================================
-
-
 def load_best_model_artifact(model_name: str):
     """Load the final trained model object from the local DVC-tracked artifact path."""
-    # Assuming lightgbm_training.py saves the model object locally for DVC tracking
     model_path = ADVANCED_DIR / f"{model_name}_model.pkl"
     if not model_path.exists():
         logger.error(
@@ -63,141 +79,233 @@ def load_best_model_artifact(model_name: str):
 
 
 def evaluate_model(model, X_test, y_test):
-    """Evaluate the model and log classification metrics and confusion matrix."""
+    """
+    Evaluate the model, handling different model types (LGBM vs XGB).
+    Returns classification report, confusion matrix, and prediction probabilities.
+    """
     try:
-        # Predict on test data
-        y_pred = model.predict(X_test)
+        # Standardize prediction logic
+        if "LGBMClassifier" in str(type(model)):
+            y_pred = model.predict(X_test)
+            y_pred_proba = model.predict_proba(X_test)
+        elif "xgboost.core.Booster" in str(type(model)):
+            # XGBoost DMatrix is required for native Booster object
+            dtest = xgb.DMatrix(X_test, label=y_test)
+            y_pred_proba = model.predict(dtest)
+            y_pred = np.argmax(y_pred_proba, axis=1)
+        else:
+            # Fallback for standard sklearn-compatible APIs
+            logger.warning(f"Unknown model type: {type(model)}. Assuming sklearn API.")
+            y_pred = model.predict(X_test)
+            y_pred_proba = model.predict_proba(X_test)
 
         # Calculate metrics
         report = classification_report(y_test, y_pred, output_dict=True)
         cm = confusion_matrix(y_test, y_pred)
 
         logger.info("Model evaluation completed on test set.")
-        return report, cm
+        return report, cm, y_pred_proba
     except Exception as e:
         logger.error(f"Error during model evaluation: {e}")
         raise
 
 
-def log_confusion_matrix_as_artifact(cm: np.ndarray, model_name: str, labels: list):
-    """Generate, save, and log confusion matrix plot to MLflow."""
-    file_path = EVAL_DIR / f"{model_name}_confusion_matrix.png"
+def plot_comparative_roc_curve(y_test_bin, roc_results: list, labels: list):
+    """
+    Plots a comparative (Macro-Average) One-vs-Rest ROC curve for all models.
+    Logs the final plot to the parent MLflow run.
+    """
+    n_classes = len(labels)
+    file_path = EVAL_FIG_DIR / "comparative_roc_curve.png"
 
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(
-        cm, annot=True, fmt="d", cmap="Blues", xticklabels=labels, yticklabels=labels
-    )
-    plt.title(f"Confusion Matrix - {model_name} Test Data")
-    plt.xlabel("Predicted Label")
-    plt.ylabel("True Label")
+    plt.figure(figsize=(12, 10))
+    colors = cycle(["blue", "green", "red", "cyan", "magenta", "yellow"])
+
+    for result, color in zip(roc_results, colors):
+        model_name = result["name"]
+        y_pred_proba = result["proba"]
+
+        # Compute ROC curve and ROC area for each class
+        fpr = dict()
+        tpr = dict()
+        roc_auc = dict()
+        for i in range(n_classes):
+            fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_pred_proba[:, i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
+
+        # Compute macro-average ROC curve and ROC area
+        all_fpr = np.unique(np.concatenate([fpr[i] for i in range(n_classes)]))
+        mean_tpr = np.zeros_like(all_fpr)
+        for i in range(n_classes):
+            mean_tpr += np.interp(all_fpr, fpr[i], tpr[i])
+        mean_tpr /= n_classes
+        fpr["macro"] = all_fpr
+        tpr["macro"] = mean_tpr
+        roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
+
+        # Plot macro-average ROC curve for the current model
+        plt.plot(
+            fpr["macro"],
+            tpr["macro"],
+            color=color,
+            lw=2,
+            label=f"{model_name} (Macro-Avg AUC = {roc_auc['macro']:.3f})",
+        )
+
+    # Plot final "chance" line
+    plt.plot([0, 1], [0, 1], "k--", lw=2, label="Chance (AUC = 0.50)")
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("Comparative Macro-Average OvR ROC Curves (Test Set)")
+    plt.legend(loc="lower right")
+    plt.grid(True)
     plt.tight_layout()
 
     plt.savefig(file_path)
     plt.close()
 
+    # Log to the current (parent) MLflow run
     mlflow.log_artifact(str(file_path))
     logger.info(
-        f"Confusion Matrix saved to {file_path.relative_to(PROJECT_ROOT)} and logged to MLflow."
+        f"Comparative ROC Curve saved to {file_path.relative_to(PROJECT_ROOT)} and logged to MLflow."
     )
 
 
-def save_test_metrics_json(model_name: str, report: dict):
-    """Save the primary test metric (macro F1) to a JSON file for DVC metrics tracking."""
-    filepath = EVAL_DIR / f"{model_name}_test_metrics.json"
-
-    macro_f1 = report["macro avg"]["f1-score"]
-
-    # DVC expects a simple JSON structure with the metric name and value
-    metrics_data = {"test_macro_f1": macro_f1}
-
-    with open(filepath, "w") as f:
-        json.dump(metrics_data, f, indent=4)
-
-    logger.info(
-        f"Test metrics saved for DVC tracking → {filepath.relative_to(PROJECT_ROOT)}"
-    )
-
-
-def save_best_model_run_info(run_id: str, model_name: str):
-    """Save the evaluation run ID and model name to a JSON file for the next stage (registration)."""
-    filepath = EVAL_DIR / f"{model_name}_evaluation_run.json"
-    model_info = {"evaluation_run_id": run_id, "model_name": model_name}
-    with open(filepath, "w") as file:
-        json.dump(model_info, file, indent=4)
-    logger.info(f"Evaluation run info saved to {filepath.relative_to(PROJECT_ROOT)}")
+def log_model_to_mlflow(model, model_name: str):
+    """Logs the model artifact using the correct MLflow flavor."""
+    if "LGBMClassifier" in str(type(model)):
+        mlflow.lightgbm.log_model(
+            lgb_model=model,
+            artifact_path="model",
+            registered_model_name=None,
+        )
+    elif "xgboost.core.Booster" in str(type(model)):
+        mlflow.xgboost.log_model(
+            xgb_model=model,
+            artifact_path="model",
+            registered_model_name=None,
+        )
+    else:
+        logger.warning(f"No specific MLflow flavor found for {type(model)}.")
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            artifact_path="model",
+            registered_model_name=None,
+        )
+    logger.info(f"Model artifact for {model_name} logged to MLflow run.")
 
 
 # =====================================================================
 #  Main Execution
 # =====================================================================
-
-
-def main():
+def main(model_list: list):
     # --- Setup MLflow ---
     mlflow_uri = get_mlflow_uri()
     setup_experiment(EXPERIMENT_NAME, mlflow_uri)
 
-    with mlflow.start_run() as run:
-        logger.info(f"🚀 Starting model evaluation for {MODEL_NAME} on Test Set...")
+    # --- 1. Load Data & Binarize Labels (Done Once) ---
+    try:
+        # load_feature_data: X_train, X_val, X_test, y_train, y_val, y_test, le
+        _, _, X_test, _, _, y_test, le = load_feature_data(validate_files=True)
+        labels = le.classes_.tolist()  # [Negative, Neutral, Positive]
 
-        try:
-            # --- 1. Load Data, Model, and Label Encoder ---
-            # load_feature_data returns: X_train, X_val, X_test, y_train, y_val, y_test, le
-            _, _, X_test, _, _, y_test, le = load_feature_data(validate_files=True)
+        # Binarize labels for multiclass ROC calculation
+        lb = LabelBinarizer()
+        y_test_bin = lb.fit_transform(y_test)
 
-            # Load the best model artifact
-            model = load_best_model_artifact(MODEL_NAME)
+    except FileNotFoundError as e:
+        logger.error(f"Failed to load data. Ensure 'dvc repro' is complete. Error: {e}")
+        return
+    except Exception as e:
+        logger.error(f"An error occurred during data loading: {e}")
+        raise
 
-            # --- 2. Evaluate Model ---
-            report, cm = evaluate_model(model, X_test, y_test)
+    # --- 2. Start Parent MLflow Run for Comparison ---
+    with mlflow.start_run(run_name="Model_Comparison_Test_Set") as parent_run:
+        logger.info(f"🚀 Starting model comparison for: {model_list}")
+        mlflow.set_tag("task", "Comparative Evaluation")
+        mlflow.log_param("models_evaluated", ", ".join(model_list))
 
-            # --- 3. Log Metrics (MLflow & DVC) ---
+        roc_results = []  # Store probas for final comparative plot
 
-            # Flatten classification report for MLflow logging
-            flat_metrics = {}
-            for label, metrics in report.items():
-                if isinstance(metrics, dict):
-                    for metric_name, value in metrics.items():
-                        if metric_name not in ("support"):
-                            # Rename f1-score to f1 for consistency
-                            key = metric_name.replace("-score", "_f1")
-                            flat_metrics[f"test_{label}_{key}"] = value
+        # --- 3. Loop and Evaluate Each Model in a Child Run ---
+        for model_name in model_list:
+            logger.info(f"--- Evaluating model: {model_name} ---")
+            with mlflow.start_run(
+                run_name=f"Evaluation_{model_name}", nested=True
+            ) as child_run:
+                try:
+                    mlflow.set_tag("model_name", model_name)
+                    mlflow.set_tag("parent_run_id", parent_run.info.run_id)
 
-            log_metrics_to_mlflow(flat_metrics)
+                    # Load model
+                    model = load_best_model_artifact(model_name)
 
-            # Save key metric to local JSON for DVC tracking
-            save_test_metrics_json(MODEL_NAME, report)
+                    # Evaluate (get report, cm, probas)
+                    report, cm, y_pred_proba = evaluate_model(model, X_test, y_test)
 
-            # Log confusion matrix artifact
-            labels = (
-                le.classes_.tolist()
-            )  # Get human-readable labels: Negative, Neutral, Positive
-            log_confusion_matrix_as_artifact(cm, MODEL_NAME, labels)
+                    # Calculate Macro AUC Score
+                    test_macro_auc = roc_auc_score(
+                        y_test, y_pred_proba, multi_class="ovr", average="macro"
+                    )
 
-            # --- 4. Log Model Artifact to MLflow Run (for registration readiness) ---
-            mlflow.lightgbm.log_model(
-                lgb_model=model,
-                artifact_path="model",
-                registered_model_name=None,  # Defer registration to the next stage
-            )
-            logger.info(f"Model artifact logged to MLflow run: {run.info.run_id}")
+                    # Flatten report for MLflow logging
+                    flat_metrics = {
+                        f"test_{label}_{metric_name.replace('-score', '_f1')}": value
+                        for label, metrics in report.items()
+                        if isinstance(metrics, dict)
+                        for metric_name, value in metrics.items()
+                        if metric_name not in ("support")
+                    }
+                    flat_metrics["test_macro_auc"] = test_macro_auc
+                    log_metrics_to_mlflow(flat_metrics)
 
-            # --- 5. Save Run Info for Registration Stage ---
-            save_best_model_run_info(run.info.run_id, MODEL_NAME)
+                    # Save key metrics to local JSON for DVC tracking
+                    save_test_metrics_json(model_name, report, test_macro_auc)
 
-            # --- 6. Set Final Tags ---
-            mlflow.set_tag("model_type", MODEL_NAME)
-            mlflow.set_tag("task", "Sentiment Analysis")
-            mlflow.set_tag("dataset", "YouTube Comments (Reddit Proxy)")
+                    # Log CM artifact to child run
+                    log_confusion_matrix_as_artifact(cm, model_name, labels)
 
-            logger.info(
-                f"🏁 Model evaluation complete. Test Macro F1: {report['macro avg']['f1-score']:.4f}"
-            )
+                    # Log model artifact (LGBM, XGB, etc.) to child run
+                    log_model_to_mlflow(model, model_name)
 
-        except Exception as e:
-            logger.error(f"Failed to complete model evaluation: {e}")
-            raise
+                    # Store results for comparative ROC plot
+                    roc_results.append({"name": model_name, "proba": y_pred_proba})
+
+                    logger.info(
+                        f"✅ Evaluation complete for {model_name}. "
+                        f"Test Macro F1: {report['macro avg']['f1-score']:.4f} | "
+                        f"Test Macro AUC: {test_macro_auc:.4f}"
+                    )
+
+                except Exception as e:
+                    logger.error(f"Failed to evaluate model {model_name}: {e}")
+                    mlflow.set_tag("status", "FAILED")
+                    mlflow.log_param("error", str(e))
+                    continue  # Continue to the next model
+
+        # --- 4. After Loop: Generate Comparative Artifacts (in Parent Run) ---
+        if roc_results:
+            logger.info("Generating comparative ROC curve...")
+            plot_comparative_roc_curve(y_test_bin, roc_results, labels)
+        else:
+            logger.warning("No models were successfully evaluated. Skipping ROC curve.")
+
+        logger.info(
+            f"🏁 Model comparison complete. View Parent Run: {parent_run.info.run_id}"
+        )
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Comparative Model Evaluation Script")
+    parser.add_argument(
+        "--models",
+        nargs="+",  # Accepts one or more model names
+        required=True,
+        help="List of model names to evaluate (e.g., lightgbm xgboost).",
+    )
+    args = parser.parse_args()
+
+    main(model_list=args.models)

@@ -37,10 +37,10 @@ from src.utils.mlflow_config import get_mlflow_uri
 from src.utils.paths import ADVANCED_DIR, PROJECT_ROOT
 from src.models.helpers.data_loader import load_text_data
 from src.models.helpers.train_utils import (
-    setup_experiment,
     save_hyperparams_bundle,
     save_metrics_json,
 )
+from src.models.helpers.mlflow_tracking_utils import setup_experiment
 
 logger = get_logger(__name__, headline="bert_training.py")
 
