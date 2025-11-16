@@ -20,7 +20,7 @@ import mlflow.sklearn
 
 # --- Project Utilities ---
 from src.models.helpers.data_loader import load_feature_data
-from src.models.helpers.train_utils import save_model_bundle
+from src.models.helpers.train_utils import save_model_bundle, save_baseline_metrics_json
 from src.models.helpers.mlflow_tracking_utils import (
     log_metrics_to_mlflow,
     setup_experiment,
@@ -102,6 +102,9 @@ def train_baseline() -> None:
                 "test_macro_f1": test_f1,
             }
         )
+
+        # --- Save baseline metric locally for DVC tracking ---
+        save_baseline_metrics_json(score=val_f1)
 
         # --- Per-class F1 breakdown ---
         report = classification_report(y_test_orig, y_pred_test_orig, output_dict=True)

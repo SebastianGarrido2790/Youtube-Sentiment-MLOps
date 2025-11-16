@@ -54,7 +54,7 @@ train:
     weight_decay: [0.001, 0.1]
 
 model_evaluation:
-  models: [lightgbm, xgboost]
+  models: [lightgbm, xgboost, logistic_baseline]
 
 register:
   f1_threshold: 0.75

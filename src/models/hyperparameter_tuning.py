@@ -135,6 +135,7 @@ def xgboost_objective(trial):
 
 
 if __name__ == "__main__":
+    # --- Argument Parsing ---
     parser = argparse.ArgumentParser(description="Hyperparameter Tuning Script")
     parser.add_argument(
         "--model",
@@ -180,7 +181,7 @@ if __name__ == "__main__":
                 best_model, artifact_path=f"best_{model_name}_model"
             )
         elif model_name == "xgboost":
-            # --- FIX: Merge static params with best_params ---
+            # --- Merge static params with best_params ---
             # best_params only contains tuned values. We must re-add
             # the objective and other static params for correct retraining.
             static_params = {

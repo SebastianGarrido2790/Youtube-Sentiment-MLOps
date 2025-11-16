@@ -13,15 +13,13 @@ It logs to MLflow in a structured way:
 - A comparative ROC curve artifact logged to the Parent Run.
 
 Usage:
-    uv run python -m src.models.model_evaluation --models lightgbm xgboost
+    uv run python -m src.models.model_evaluation --models lightgbm xgboost logistic_baseline
 """
 
 import argparse
 import pickle
-import json
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from itertools import cycle
 
 # --- ML/Scikit-learn Imports ---
@@ -39,11 +37,14 @@ from sklearn.metrics import (
 from sklearn.preprocessing import LabelBinarizer
 
 # --- Project Utilities ---
-from src.utils.paths import ADVANCED_DIR, EVAL_FIG_DIR, PROJECT_ROOT
+from src.utils.paths import ADVANCED_DIR, EVAL_FIG_DIR, PROJECT_ROOT, BASELINE_MODEL_DIR
 from src.utils.logger import get_logger
 from src.utils.mlflow_config import get_mlflow_uri
 from src.models.helpers.data_loader import load_feature_data
-from src.models.helpers.train_utils import save_test_metrics_json
+from src.models.helpers.train_utils import (
+    save_test_metrics_json,
+    save_best_model_run_info,
+)
 from src.models.helpers.mlflow_tracking_utils import (
     setup_experiment,
     log_metrics_to_mlflow,
@@ -60,22 +61,67 @@ logger = get_logger(__name__, headline="model_evaluation.py")
 # =====================================================================
 #  Core Helper Functions
 # =====================================================================
-def load_best_model_artifact(model_name: str):
-    """Load the final trained model object from the local DVC-tracked artifact path."""
-    model_path = ADVANCED_DIR / f"{model_name}_model.pkl"
-    if not model_path.exists():
-        logger.error(
-            f"Model file not found at {model_path}. Please check the training stage outputs."
+def load_model_artifact(model_name: str):
+    """
+    Loads the trained model artifact from the correct directory.
+
+    The Logistic Regression baseline is saved as a model bundle (dict)
+    in models/baseline/. Other models are saved directly in models/advanced/.
+
+    Args:
+        model_name (str): The name of the model to load ('lightgbm', 'xgboost',
+                          or 'logistic_baseline').
+
+    Returns:
+        object: The trained model object (LogisticRegression, LGBMClassifier, etc.).
+
+    Raises:
+        ValueError: If an unknown model name is provided.
+        FileNotFoundError: If the model artifact cannot be found.
+    """
+
+    if model_name == "logistic_baseline":
+        # 1. Baseline model is saved as a 'bundle' (dict with 'model' and 'encoder')
+        filepath = BASELINE_MODEL_DIR / "logistic_baseline.pkl"
+        logger.info(
+            f"Loading baseline model bundle from: {filepath.relative_to(PROJECT_ROOT)}"
         )
-        raise FileNotFoundError(f"Required model artifact {model_path} is missing.")
-    try:
-        with open(model_path, "rb") as file:
-            model = pickle.load(file)
-        logger.info(f"Best model loaded from {model_path.relative_to(PROJECT_ROOT)}")
-        return model
-    except Exception as e:
-        logger.error(f"Error loading model from {model_path}: {e}")
-        raise
+
+        try:
+            with open(filepath, "rb") as f:
+                model_bundle = pickle.load(f)
+
+            # Extract the actual model object from the dictionary
+            model = model_bundle.get("model")
+
+            if model is None:
+                raise ValueError("Model object not found in the baseline bundle.")
+            return model
+
+        except FileNotFoundError:
+            logger.error(f"Baseline model file not found at: {filepath}")
+            raise
+
+    elif model_name in ["lightgbm", "xgboost"]:
+        # 2. Advanced models are saved directly as the model object
+        filepath = ADVANCED_DIR / f"{model_name}_model.pkl"
+        logger.info(
+            f"Loading advanced model artifact from: {filepath.relative_to(PROJECT_ROOT)}"
+        )
+
+        try:
+            with open(filepath, "rb") as f:
+                model = pickle.load(f)
+            return model
+
+        except FileNotFoundError:
+            logger.error(f"Advanced model file not found at: {filepath}")
+            raise
+
+    else:
+        raise ValueError(
+            f"Unknown model name: {model_name}. Must be 'lightgbm', 'xgboost', or 'logistic_baseline'."
+        )
 
 
 def evaluate_model(model, X_test, y_test):
@@ -230,6 +276,8 @@ def main(model_list: list):
 
         roc_results = []  # Store probas for final comparative plot
 
+        champion_metrics = []  # List to track champion model metrics
+
         # --- 3. Loop and Evaluate Each Model in a Child Run ---
         for model_name in model_list:
             logger.info(f"--- Evaluating model: {model_name} ---")
@@ -241,7 +289,7 @@ def main(model_list: list):
                     mlflow.set_tag("parent_run_id", parent_run.info.run_id)
 
                     # Load model
-                    model = load_best_model_artifact(model_name)
+                    model = load_model_artifact(model_name)
 
                     # Evaluate (get report, cm, probas)
                     report, cm, y_pred_proba = evaluate_model(model, X_test, y_test)
@@ -263,7 +311,7 @@ def main(model_list: list):
                     log_metrics_to_mlflow(flat_metrics)
 
                     # Save key metrics to local JSON for DVC tracking
-                    save_test_metrics_json(model_name, report, test_macro_auc)
+                    save_test_metrics_json(model_name, report)
 
                     # Log CM artifact to child run
                     log_confusion_matrix_as_artifact(cm, model_name, labels)
@@ -273,6 +321,16 @@ def main(model_list: list):
 
                     # Store results for comparative ROC plot
                     roc_results.append({"name": model_name, "proba": y_pred_proba})
+
+                    # Add metrics to champion list
+                    champion_metrics.append(
+                        {
+                            "model_name": model_name,
+                            "run_id": child_run.info.run_id,
+                            "test_macro_auc": test_macro_auc,
+                            "test_macro_f1": report["macro avg"]["f1-score"],
+                        }
+                    )
 
                     logger.info(
                         f"✅ Evaluation complete for {model_name}. "
@@ -290,8 +348,34 @@ def main(model_list: list):
         if roc_results:
             logger.info("Generating comparative ROC curve...")
             plot_comparative_roc_curve(y_test_bin, roc_results, labels)
+
+            # Select Champion and Save Info for DVC Registration
+            if champion_metrics:
+                logger.info("Selecting champion model...")
+                # Select champion based on the highest Test Macro AUC
+                champion = max(
+                    champion_metrics, key=lambda item: item["test_macro_auc"]
+                )
+
+                logger.info(
+                    f"🏆 Champion selected: {champion['model_name']} "
+                    f"(AUC: {champion['test_macro_auc']:.4f}). "
+                    f"Saving run info for registration."
+                )
+
+                # Save the champion's info to the DVC output file
+                save_best_model_run_info(
+                    run_id=champion["run_id"], model_name=champion["model_name"]
+                )
+            else:
+                logger.error(
+                    "No models were successfully evaluated. Cannot select champion."
+                )
+
         else:
-            logger.warning("No models were successfully evaluated. Skipping ROC curve.")
+            logger.warning(
+                "No models were successfully evaluated. Skipping ROC curve and champion selection."
+            )
 
         logger.info(
             f"🏁 Model comparison complete. View Parent Run: {parent_run.info.run_id}"

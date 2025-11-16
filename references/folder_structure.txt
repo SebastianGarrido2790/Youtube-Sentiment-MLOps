@@ -3,7 +3,7 @@ YouTube_Sentiment_Analysis
 ├── README.md          <- The top-level README for developers using this project.
 ├── .dvc
 ├── .venv
-├── 🛡️ YouTube_Sentiment_Analysis.code-workspace
+├── 🛡️ YouTube_Sentiment_Analysis.code-workspace  <- VSCode workspace file.
 ├── app
 │   ├── inference_utils.py
 │   ├── insights_api.py
@@ -21,7 +21,7 @@ YouTube_Sentiment_Analysis
 │   ├── processed      <- The final, canonical data sets for modeling.
 │   └── raw            <- The original, immutable data dump.
 │
-├── docker        <- Docker setup.
+├── docker        <- Docker configuration files.
 │   ├── .dockerignore
 │   ├── docker-compose.yml
 │   └── Dockerfile
@@ -96,7 +96,7 @@ YouTube_Sentiment_Analysis
 │   │   ├── tfidf_max_features.py
 │   │   ├── tfidf_vs_bert.py
 │   │   └── helpers
-│   │       └── __init__.py
+│   │       ├── __init__.py
 │   │       └── feature_utils.py
 │   │
 │   ├── models         <- Scripts to train models and then use trained models to make predictions.
@@ -110,6 +110,7 @@ YouTube_Sentiment_Analysis
 │   │   └── helpers
 │   │       ├── __init__.py
 │   │       ├── data_loader.py
+│   │       ├── mlflow_tracking_utils.py
 │   │       └── train_utils.py
 │   │
 │   ├── utils          <- Scripts for reusable helper functions, classes, and modules.
@@ -133,5 +134,5 @@ YouTube_Sentiment_Analysis
 ├── GEMINI.md
 ├── params.yaml
 ├── pyproject.toml
-├── requirements.txt   <- The requirements file for reproducing the analysis environment.
+├── reset-venv-full.ps1
 └── uv.lock

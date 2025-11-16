@@ -9,7 +9,7 @@ from datetime import datetime
 
 # --- Project Utilities ---
 from src.utils.logger import get_logger
-from src.utils.paths import ADVANCED_DIR, EVAL_DIR, PROJECT_ROOT
+from src.utils.paths import ADVANCED_DIR, EVAL_DIR, PROJECT_ROOT, BASELINE_MODEL_DIR
 
 # --- Logging Setup ---
 logger = get_logger(__name__, headline="train_utils.py")
@@ -90,6 +90,23 @@ def save_test_metrics_json(model_name: str, report: dict):
 
     logger.info(
         f"Test metrics saved for DVC tracking → {filepath.relative_to(PROJECT_ROOT)}"
+    )
+
+
+def save_baseline_metrics_json(score: float):
+    """
+    Saves the baseline model's primary metric to a JSON file.
+    """
+    filepath = BASELINE_MODEL_DIR / "baseline_metrics.json"
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    metrics_data = {"val_macro_f1": score}
+
+    with open(filepath, "w") as f:
+        json.dump(metrics_data, f, indent=4)
+
+    logger.info(
+        f"Baseline metrics saved for DVC tracking → {filepath.relative_to(PROJECT_ROOT)}"
     )
 
 
