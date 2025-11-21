@@ -138,7 +138,7 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-      # --- Improved Health Check ---
+      # --- Health Check ---
       - name: Run health check
         run: |
           docker run --rm -p 8000:8000 -d --name api ${{ steps.meta.outputs.tags }}
