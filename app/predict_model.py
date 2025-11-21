@@ -20,6 +20,28 @@ Response Example:
       "encoded_labels": [2],
       "feature_shape": [1, 1004]
     }
+
+Aspect-Based Sentiment Analysis (ABSA) Endpoint:
+    curl -X POST "http://127.0.0.1:8000/predict_absa" `
+     -H "Content-Type: application/json" `
+     -d '{
+           "text": "The video quality was amazing, but the presenter seemed bored.",
+           "aspects": ["video quality", "presenter"]
+         }'
+
+Response Example:
+    [
+    {
+        "aspect": "video quality",
+        "sentiment": "positive",
+        "score": 0.99...
+    },
+    {
+        "aspect": "presenter",
+        "sentiment": "negative",
+        "score": 0.97...
+    }
+    ]
 """
 
 from fastapi import FastAPI, HTTPException
@@ -29,11 +51,13 @@ from scipy.sparse import hstack
 import joblib
 import numpy as np
 import xgboost as xgb
+from typing import List
 
 # --- Project Utilities ---
 from src.utils.logger import get_logger
 from src.utils.paths import FEATURES_DIR
 from app.inference_utils import load_production_model, build_derived_features
+from src.models.absa_model import ABSAModel
 
 logger = get_logger(__name__, headline="predict_model.py")
 
@@ -134,6 +158,48 @@ def predict(data: PredictRequest):
 
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# Aspect-Based Sentiment Analysis (ABSA)
+# ============================================================
+
+# Load the ABSA model
+try:
+    absa_model = ABSAModel()
+    logger.info("✅ Loaded ABSA model successfully.")
+except Exception as e:
+    logger.warning(
+        f"⚠️ ABSA model could not be loaded: {e}. The /predict_absa endpoint will not be available."
+    )
+    absa_model = None
+
+
+class ABSAPredictRequest(BaseModel):
+    text: str
+    aspects: List[str]
+
+
+class AspectSentiment(BaseModel):
+    aspect: str
+    sentiment: str
+    score: float
+
+
+@app.post("/predict_absa", response_model=List[AspectSentiment])
+def predict_absa(data: ABSAPredictRequest):
+    if absa_model is None:
+        raise HTTPException(
+            status_code=501,
+            detail="ABSA model is not available. The service was started without it.",
+        )
+    try:
+        analysis = absa_model.predict(data.text, data.aspects)
+        logger.info(f"✅ ABSA prediction completed for text: '{data.text[:50]}...'")
+        return analysis
+    except Exception as e:
+        logger.error(f"ABSA prediction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
