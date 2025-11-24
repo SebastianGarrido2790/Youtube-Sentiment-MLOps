@@ -8,7 +8,7 @@ The feature_comparison stage should not have an outs section in dvc.yaml,
 as its primary purpose is hyperparameter tuning and comparison where results are logged to MLflow,
 not saved as local artifacts for DVC versioning.
 
-Usage (DVC command):
+Usage:
     uv run python -m src.features.tfidf_vs_distilbert --ngram_ranges '[(1,1),(1,2),(1,3)]' --max_features 5000 --use_distilbert true
 
 Requirements:
