@@ -44,16 +44,16 @@ The `test` job is responsible for ensuring code quality, correctness, and reprod
 
 1.  **Checkout Code**: Checks out the repository's source code.
 2.  **Set up Python**: Configures the Python 3.11 environment.
-3.  **Install Dependencies**: Installs project dependencies using `uv`. This step is accelerated by caching the `uv` dependencies, which significantly speeds up subsequent runs.
+3.  **Install Dependencies**: Installs project dependencies using `uv`. This step is accelerated by caching `uv` dependencies, which significantly speeds up subsequent runs.
 4.  **Linting and Formatting**: Runs `Ruff` to check for linting errors and ensure consistent code formatting.
-5.  **Pull DVC Data**: Authenticates with AWS and pulls the versioned data and models using `dvc pull`. This is a critical MLOps step that ensures tests are reproducible and run against the correct data version.
+5.  **Pull DVC Data**: Authenticates with AWS and pulls versioned data, models, and the DVC run-cache using `dvc pull --run-cache`. This MLOps step ensures tests are reproducible and can reuse results from previous pipeline stages.
 6.  **Run Tests**: Executes the entire test suite using `pytest`.
 
 **MLOps Highlights:**
 
--   **Reproducibility**: By using `dvc pull`, the pipeline guarantees that tests are always performed with the same version of the data that the models were trained on.
+-   **Reproducibility**: By using `dvc pull`, the pipeline guarantees that tests are always performed with the same version of the data and models.
 -   **Reliability**: Comprehensive linting and testing ensure that code quality remains high and regressions are caught early.
--   **Efficiency**: Caching Python dependencies minimizes setup time, providing faster feedback to developers.
+-   **Efficiency**: Caching Python dependencies and the DVC run-cache minimizes setup time, providing faster feedback to developers.
 
 ### `build` Job
 
@@ -92,9 +92,11 @@ The `deploy` job is responsible for automatically deploying the application to a
 -   **Zero-Downtime Strategy (Basic)**: While simple, the stop-and-replace mechanism ensures that the old version is removed before the new one starts, providing a clean state transition. More advanced strategies like blue-green could be implemented in the future.
 -   **Infrastructure as Code Principle**: The entire deployment logic is defined as code within the GitHub Actions workflow, making the process transparent and reproducible.
 
-## 4. How to Use the Pipeline
+## 4. How to Run the Pipeline
 
-### Prerequisites
+The pipeline is designed to run automatically based on Git events. There is no manual trigger configured by default. This section outlines the required setup and the standard developer workflow to run the pipeline.
+
+### 4.1. Prerequisites
 
 For the pipeline to run successfully, you need to configure the following secrets in your GitHub repository settings under **Settings > Secrets and variables > Actions**:
 
@@ -105,11 +107,21 @@ For the pipeline to run successfully, you need to configure the following secret
 
 The pipeline uses OpenID Connect (OIDC) to securely authenticate with AWS without needing to store long-lived access keys as secrets. For more information on setting this up, see the [GitHub documentation on configuring OIDC with AWS](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services).
 
-### Developer Workflow
+### 4.2. Developer Workflow
+
+The pipeline is triggered by making contributions to the repository through a standard Git workflow:
 
 1.  **Create a Feature Branch**: Create a new branch from `main` for your changes.
+    ```bash
+    git checkout main
+    git pull origin main
+    git checkout -b my-new-feature
+    ```
 2.  **Make Changes**: Implement your new feature or bug fix.
 3.  **Push and Create a Pull Request**: Push your branch to GitHub and open a pull request targeting the `main` branch.
-4.  **Review Pipeline Results**: The `test` job will run automatically. You can monitor its progress and review the results in the "Actions" tab of the pull request. If the job fails, you can inspect the logs to diagnose the issue.
-5.  **Merge to `main`**: Once the pull request is reviewed and approved, merge it into the `main` branch.
-6.  **Trigger Full CI/CD Pipeline**: The merge to `main` will trigger the `test`, `build`, and `deploy` jobs in sequence. If all jobs succeed, the updated application will be automatically deployed to the production environment.
+    ```bash
+    git push origin my-new-feature
+    ```
+4.  **Review Pipeline Results**: Opening the pull request automatically triggers the `test` job. You can monitor its progress and review the results in the "Actions" tab of the pull request. If the job fails, inspect the logs to diagnose the issue.
+5.  **Merge to `main`**: Once the pull request is reviewed, approved, and the `test` job is passing, merge it into the `main` branch.
+6.  **Trigger Full CI/CD Pipeline**: The merge to `main` triggers the full `test`, `build`, and `deploy` sequence. If all jobs succeed, the updated application will be automatically deployed to the production environment.
