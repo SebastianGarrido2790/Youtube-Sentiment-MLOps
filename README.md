@@ -1,193 +1,177 @@
-# YouTube Sentiment Analysis
-## Project Overview
-The **YouTube Sentiment Analysis** project builds an end‑to‑end MLOPS pipeline for extracting, cleaning, engineering, training, evaluating, and deploying a sentiment model on YouTube video metadata and comments. The goal is to provide actionable insights for content creators and platform stakeholders by predicting audience sentiment and engagement.
-The project addresses the lack of automated sentiment tools for YouTube data, enabling data‑driven decisions, trend analysis, and content optimisation.
-## Table of Contents
-- [Project Overview](#project-overview)
-- [Installation](#installation)
-- [Dataset](#dataset)
-- [Preprocessing](#preprocessing)
-- [Model Architecture](#model-architecture)
-- [Training](#training)
-- [Evaluation](#evaluation)
-- [Results](#results)
-- [Visualizations](#visualizations)
-- [Deployment](#deployment)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
-## Installation
+# YouTube Sentiment Analysis MLOps Pipeline
+
+## 1. Project Overview
+
+The **YouTube Sentiment Analysis** project builds an end-to-end MLOps pipeline for real-time sentiment analysis of YouTube comments. The system automatically processes comments, predicts sentiment, and provides rich, actionable insights for content creators through two bespoke Chrome Extensions.
+
+The core goal is to master and demonstrate modern ML engineering practices, leveraging tools like **DVC for data/pipeline versioning** and **MLflow for experiment tracking/model registry**, alongside CI/CD, containerization, and automated deployment. This creates a production-grade, scalable, and maintainable system.
+
+## 2. Table of Contents
+
+- [Project Overview](#1-project-overview)
+- [Table of Contents](#2-table-of-contents)
+- [Features](#3-features)
+- [System Architecture](#4-system-architecture)
+- [Technology Stack](#5-technology-stack)
+- [MLOps Pipeline](#6-mlops-pipeline)
+- [Installation](#7-installation)
+- [Chrome Extensions](#8-chrome-extensions)
+  - [Standard Sentiment Insights](#standard-sentiment-insights)
+  - [Aspect-Based Sentiment Analysis (ABSA)](#aspect-based-sentiment-analysis-absa)
+- [Deployment](#9-deployment)
+- [License](#10-license)
+- [Contact](#11-contact)
+
+## 3. Features
+
+- **End-to-End MLOps:** Full pipeline automation from data ingestion to model deployment, with `DVC` managing **data and pipeline versioning** and `MLflow` providing **experiment tracking and a model registry**.
+- **Dual Model Approach:**
+  - **Tree-based models (LightGBM/XGBoost)** for fast and accurate general sentiment prediction (Positive, Neutral, Negative).
+  - **Transformer-based Model (BERT)** for nuanced Aspect-Based Sentiment Analysis (ABSA).
+- **Dual Chrome Extensions:**
+  - **Sentiment Insights:** Provides aggregated sentiment metrics, time-series trend graphs, and word clouds.
+  - **ABSA Insights:** Identifies sentiment towards specific, user-defined topics (e.g., "video quality," "presenter").
+- **Containerized Deployment:** `Docker` and `Docker Compose` for reproducible, isolated environments for both the API and MLflow services.
+- **CI/CD Automation:** `GitHub Actions` for automated testing, linting, and build validation on every push.
+- **Reproducibility:** `uv` for fast, lockfile-based dependency management.
+
+## 4. System Architecture
+
+The architecture is composed of three main layers:
+
+1.  **Data & Modeling Layer:**
+    - **DVC:** Manages the **data pipeline (`dvc.yaml`)**, **versioning raw, processed, and interim datasets**.
+    - **MLflow:** **Tracks experiments**, **logs metrics**, and **manages the model lifecycle** in the Model Registry.
+2.  **Inference & API Layer:**
+    - **FastAPI:** Serves the trained models via a high-performance REST API. It exposes two main endpoints:
+      - `/predict`: For the general sentiment model.
+      - `/predict_absa`: For the aspect-based sentiment model.
+    - **Docker:** Containerizes the FastAPI application and the MLflow server for consistent deployment.
+3.  **Presentation Layer (Frontend):**
+    - **Chrome Extensions:** Two vanilla JS extensions that interact with the FastAPI backend to provide real-time insights directly on YouTube video pages.
+
+## 5. Technology Stack
+
+| Layer | Tool | Purpose |
+| :--- | :--- | :--- |
+| **Methodology** | CRISP-DM + MLOps | Project Lifecycle & Structure |
+| **Python** | Python 3.11 | Core Programming Language |
+| **Dependencies** | `uv` + `pyproject.toml` | Environment & Dependency Management |
+| **Data Versioning** | DVC | Data & Pipeline Version Control |
+| **Experiment Tracking** | MLflow | Experiment Logging & Model Registry |
+| **Model Serving** | FastAPI + Docker | Real-time Inference API & Containerization |
+| **CI/CD** | GitHub Actions | Continuous Integration & Delivery |
+| **ML Models** | LightGBM, XGBoost, Transformers | Sentiment & ABSA Modeling |
+| **Frontend** | JavaScript (Vanilla) | Chrome Extensions |
+
+## 6. MLOps Pipeline
+
+The project's MLOps core is orchestrated using a **DVC pipeline** defined in `dvc.yaml` for **data and pipeline versioning**. This ensures every stage of the ML lifecycle is reproducible and its artifacts are tracked. **MLflow** is integrated throughout to provide **robust experiment tracking**, allowing for comprehensive logging of parameters, metrics, and models, and managing the **model lifecycle within its Model Registry**.
+
+**Key Pipeline Stages:**
+
+1.  **`prepare_data`:** Cleans and preprocesses the raw YouTube comments from `data/raw/` into a usable format.
+2.  **`featurize`:** Generates TF-IDF vectors and other derived features from the cleaned text.
+3.  **`train_advanced_models`:** Trains multiple models (LightGBM, XGBoost) on the engineered features.
+4.  **`evaluate_models`:** Compares the models using key metrics (F1-score, AUC) and automatically selects the best-performing one as the "champion."
+5.  **`register_model`:** Promotes the champion model to the "Production" stage in the MLflow Model Registry.
+
+To run the full pipeline:
+
 ```bash
-# Create a fresh environment
+# Ensure DVC is initialized and MLflow tracking server is running
+dvc repro
+```
+
+## 7. Installation
+
+```bash
+# 1. Create a fresh virtual environment
 uv venv .venv
-.venv\Scripts\activate  # Mac: source .venv/bin/activate
-# Install dependencies
-uv sync  # pyproject.toml
-uv pip install -r requirements.txt
-# (Optional) GPU support
-pip install torch==2.3.0+cu118 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# 2. Activate the environment
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+
+# 3. Install all dependencies from the lockfile
+uv sync
+
+# 4. (Optional) For local development, pull DVC-tracked data
+dvc pull
 ```
-The project uses **uv** for fast dependency resolution and virtual‑environment management. Ensure `uv` is installed globally (`pip install uv`).  
-## Dataset
-The dataset is a curated collection of YouTube video metadata and comments sourced via the YouTube Data API. It is stored in `data/raw/` as a CSV file `youtube_comments.csv` with the following columns:
-| Column | Description |
-|--------|-------------|
-| `video_id` | Unique video identifier |
-| `title` | Video title |
-| `description` | Video description |
-| `comment_text` | Comment body |
-| `published_at` | Timestamp |
-| `like_count` | Number of likes |
-| `dislike_count` | Number of dislikes |
-Pre‑processing steps include:
-- Removing non‑English comments.
-- Deduplication of comments.
-- Normalising timestamps.
-The processed dataset is saved in `data/processed/`.
-## Preprocessing
-The preprocessing pipeline is implemented in `src/features/feature_engineering.py` and consists of:
-1. **Text cleaning** – lowercasing, removing URLs, emojis, and special characters.
-2. **Tokenisation** – using `nltk` or `spaCy`.
-3. **Feature extraction** – TF‑IDF vectors, sentiment lexicon scores, and metadata embeddings.
-- **ADASYN Oversampling** – Best method from `imbalance_tuning` (F1‑positive: 0.7333).
-The pipeline is executed via the `preprocess.py` script (see `scripts/` if available).
-## Model Architecture
-| Model | Description | Hyperparameters |
-|-------|-------------|-----------------|
-| Logistic Regression | Baseline linear classifier | `C=1.0`, `penalty='l2'` |
-| BERT Fine‑tuning | Transformer‑based text classifier | `epochs=3`, `batch_size=32`, `learning_rate=2e-5` |
-| Hyperparameter Tuning | Grid search over `C` and `max_features` | `C=[0.1,1,10]`, `max_features=[5000,10000,20000]` |
-The BERT model is implemented in `src/models/bert_training.py` using Hugging Face Transformers. The logistic baseline resides in `src/models/baseline_logistic.py`.
-## Training
-To train the BERT model:
-```bash
-uv run python src/models/bert_training.py --config params.yaml
-```
-Training logs are written to `logs/` and checkpoints are stored in `models/`. The `params.yaml` file contains all hyperparameters and paths.
-## Evaluation
-Evaluation is performed in `src/models/model_evaluation.py`. Metrics include:
-- Accuracy
-- Precision, Recall, F1‑score
-- Confusion matrix
-- ROC‑AUC
 
-### Model Evaluation Results
+## 8. Chrome Extensions
 
-| Model | Test Macro F1 | Test Weighted F1 |
-|-------|---------------|-----------------|
-| LightGBM | 0.7556 | 0.7713 |
-| Logistic Baseline | 0.7477 | 0.7646 |
-| XGBoost | 0.7538 | 0.7698 |
+The project includes two Chrome Extensions for real-time analysis directly on YouTube.
 
-*Note: The BERT model is disabled for CPU on this setup.*
-Run:
-```bash
-uv run python src/models/model_evaluation.py --model_path models/bert_best.pt
-```
-Results are saved to `reports/figures/evaluation/`.
-## Results
+### Standard Sentiment Insights
 
-## Best Model Run Info
+This extension provides a high-level overview of the sentiment landscape for a video's comment section. It's ideal for quickly gauging the overall community reaction.
 
-```json
-{
-  "model_name": "xgboost",
-  "run_id": "e7a689a7430b46698e8d5349047652ab",
-  "metric_used_for_selection": "test_macro_auc",
-  "timestamp": "2025-11-16T21:21:56.034648"
-}
-```
-**Note**: See the detailed confusion matrix and ROC curve in the evaluation figures.
-## Chrome Extension
+-   **Features:** Aggregated sentiment breakdown (Positive, Neutral, Negative), trend graphs, word clouds, and key comment statistics.
+-   **Backend Endpoint:** Communicates with `/predict_with_timestamps` and other endpoints from the `insights_api.py` service running on port `8001`.
+-   **Location:** `chrome-extension/`
 
-The **Chrome Extension** is the user-facing component of the MLOps pipeline, providing real-time sentiment analysis and insights directly on any YouTube video page. It communicates with the backend services running via Docker Compose and the separate Insights API service.
+![YouTube Sentiment Insights](reports/figures/YouTube_API/sentiment_prediction/YouTube_API_1.png)
+*Figure 1: The Sentiment Insights extension showing an overall analysis of comments.*
 
-### Features
+### Aspect-Based Sentiment Analysis (ABSA)
 
-  * **Real-time Analysis:** Extracts comments (up to 1000) and sends them to the backend API for instant sentiment prediction.
-  * **Visualizations:** Displays a breakdown of **Positive, Neutral, and Negative** sentiments, a **Sentiment Trend Graph**, and a **Comment Wordcloud**.
-  * **API Endpoints Used:**
-      * **Core API (Port 8000):** For basic sentiment prediction (`/predict`).
-      * **Insights API (Port 8001):** For generating charts and trend data (`/generate_chart`, `/generate_trend_graph`, etc.) by leveraging the `insights_api.py` service.
+This advanced extension identifies sentiment towards specific topics (aspects) within the comments, offering a much more granular analysis.
 
-### Architecture
+-   **Features:** Analyzes comments for pre-defined aspects (`video quality`, `audio`, `presenter`, etc.) and displays the sentiment for each.
+-   **Backend Endpoint:** Communicates with the `/predict_absa` endpoint.
+-   **Location:** `chrome-extension-absa/`
 
-| Component | Role | Files |
-|---|---|---|
-| **Frontend** | User Interface and API calls | `chrome-extension/popup.html`, `popup.css`, `popup.js` |
-| **Data Fetcher** | Fetches comments using the official YouTube Data API. | `chrome-extension/youtube_api.js` |
-| **Manifest** | Defines permissions (incl. YouTube API and local backend ports). | `chrome-extension/manifest.json` |
+![YouTube ABSA Insights](reports/figures/YouTube_API/aspect_based_sentiment/YouTube_API_4.png)
+*Figure 2: The ABSA extension breaking down sentiment by specific aspects.*
 
-### Setup
+### Setup for Both Extensions
 
-1.  **Load the Extension:**
-      * Open Chrome and navigate to `chrome://extensions/`.
-      * Enable **Developer mode** via the toggle in the top right.
-      * Click **Load unpacked**.
-      * Select the `chrome-extension/` directory.
-2.  **Ensure Backend is Running:** The backend services must be available at the configured ports.
-      * Start the main MLOps environment: `cd docker/ && docker-compose up --build -d` (for Core API on `8000`).
-      * Start the Insights API separately (if not in Docker Compose):
-        ```bash
-        uv run uvicorn app.insights_api:app --reload --port 8001
-        ```
-3.  **Use:** Navigate to any YouTube video and click the extension icon to begin analysis.
-## Visualizations
-Below are key visualizations from the analysis.
+1.  **Load the Extensions:**
+    -   Open Chrome and navigate to `chrome://extensions/`.
+    -   Enable **Developer mode**.
+    -   Click **Load unpacked** and select the `chrome-extension/` directory.
+    -   Click **Load unpacked** again and select the `chrome-extension-absa/` directory.
+2.  **Ensure Backend is Running:** The FastAPI service must be running. See the [Deployment](#9-deployment) section.
 
-![YouTube API 1](reports/figures/YouTube_API/YouTube_API_1.png)
+## 9. Deployment
 
-*Figure 1: Distribution of comment sentiment by video category.*
-![YouTube API 2](reports/figures/YouTube_API/YouTube_API_2.png)
-
-*Figure 2: Correlation between likes and sentiment.*
-![YouTube API 3](reports/figures/YouTube_API/YouTube_API_3.png)
-
-*Figure 3: Temporal trend of sentiment scores.*
-
-Each image is linked to its source file in the `reports/figures/YouTube_API/` directory.
-## Deployment
-
-The model is packaged as a **FastAPI** application and containerised with Docker for deployment. The project uses **Docker Compose** to set up a full MLOps environment, which includes the **Sentiment Analysis API** and a persistent **MLflow Tracking Server**.
+The entire application is containerized using Docker and orchestrated with Docker Compose for easy, reproducible deployment.
 
 ### Launching the Environment
 
-1.  **Navigate** to the `docker/` directory (where `docker-compose.yml` is located):
-
+1.  **Navigate** to the `docker/` directory:
     ```bash
     cd docker/
     ```
-
-2.  **Build and run** the services using Docker Compose:
-
+2.  **Build and run** all services in detached mode:
     ```bash
     docker-compose up --build -d
     ```
 
 ### Services
 
-  * **API Service (`youtube_sentiment_api`):** Runs the sentiment prediction endpoint on `http://localhost:8000`.
-
-      * It is configured with live reload for development via volume mounting.
-      * It uses `uvicorn` with `uv run` for the server command.
-      * It loads the best model by connecting to the MLflow Server using the internal Docker service name, `http://mlflow:5000`.
-      * The API endpoint `/predict` accepts JSON payloads with `comment_text` and returns a sentiment label.
-
-  * **MLflow Service (`mlflow_server`):** Provides the model registry and tracking capabilities on `http://localhost:5000`.
-
-      * It uses the official `ghcr.io/mlflow/mlflow:latest` image.
-      * Data persistence is ensured by mounting host volumes for the SQLite backend (`mlflow.db`) and artifacts directory (`mlruns/`).
+-   **`youtube_sentiment_api`**: The core FastAPI service running on `http://localhost:8000`. It automatically loads the "Production" model from the MLflow server.
+-   **`mlflow_server`**: The MLflow Tracking Server, accessible at `http://localhost:5000`. It uses a mounted volume for persistent storage of experiments and registered models.
+-   **`insights_api`**: A separate FastAPI service on `http://localhost:8001` dedicated to generating visualizations (charts, word clouds) for the main Chrome Extension.
 
 ### Cleanup
 
-To stop and remove all containers, networks, and the volumes used by the services:
+To stop and remove all containers, networks, and volumes:
 
 ```bash
 docker-compose down -v
 ```
-## License
+
+## 10. License
+
 This project is licensed under the MIT License – see the [LICENSE.txt](LICENSE.txt) file.
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-## Contact
-- **Project Lead:** Sebastian Garrido – sebastiangarrido2790@gmail.com
-- **Documentation:** https://github.com/SebastianGarrido2790/Youtube-Sentiment-MLOPS
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
+
+## 11. Contact
+
+-   **Project Lead:** Sebastian Garrido – sebastiangarrido2790@gmail.com
+-   **GitHub Repository:** [https://github.com/SebastianGarrido2790/Youtube-Sentiment-MLOPS](https://github.com/SebastianGarrido2790/Youtube-Sentiment-MLOPS)
