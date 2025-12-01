@@ -66,15 +66,26 @@ The architecture is composed of three main layers:
 
 ## 6. MLOps Pipeline
 
-The project's MLOps core is orchestrated using a **DVC pipeline** defined in `dvc.yaml` for **data and pipeline versioning**. This ensures every stage of the ML lifecycle is reproducible and its artifacts are tracked. **MLflow** is integrated throughout to provide **robust experiment tracking**, allowing for comprehensive logging of parameters, metrics, and models, and managing the **model lifecycle within its Model Registry**.
+The project's MLOps core is orchestrated using a **DVC pipeline** defined in `dvc.yaml` for **data and pipeline versioning**, strictly following a **configuration-driven** philosophy. This ensures every stage of the ML lifecycle is reproducible and its artifacts are tracked. **MLflow** is integrated throughout to provide **robust experiment tracking**, allowing for comprehensive logging of parameters, metrics, and models, and managing the **model lifecycle within its Model Registry**.
+
+### Configuration as Code (Single Source of Truth)
+
+Unlike traditional scripts that rely on long, brittle command-line arguments, this project uses `params.yaml` as the single source of truth.
+
+-   **`params.yaml`**: Centralizes all configuration (hyperparameters, file paths, thresholds).
+-   **`dvc.yaml`**: Defines the pipeline stages (DAG) but keeps commands clean and simple (e.g., `uv run python -m src.features.feature_engineering`).
+-   **Python Scripts**: Directly load their specific configuration from `params.yaml` using `dvc.api.params_show()`.
+
+This approach guarantees that **changing a parameter in `params.yaml` automatically triggers only the necessary pipeline stages** when `dvc repro` is run, ensuring total reproducibility without command-line clutter.
 
 **Key Pipeline Stages:**
 
-1.  **`prepare_data`:** Cleans and preprocesses the raw YouTube comments from `data/raw/` into a usable format.
-2.  **`featurize`:** Generates TF-IDF vectors and other derived features from the cleaned text.
-3.  **`train_advanced_models`:** Trains multiple models (LightGBM, XGBoost) on the engineered features.
-4.  **`evaluate_models`:** Compares the models using key metrics (F1-score, AUC) and automatically selects the best-performing one as the "champion."
-5.  **`register_model`:** Promotes the champion model to the "Production" stage in the MLflow Model Registry.
+1.  **`data_ingestion`**: Downloads raw data using the URL defined in `params.yaml`.
+2.  **`data_preparation`**: Cleans and splits data based on `test_size` and `random_state` from `params.yaml`.
+3.  **`feature_engineering`**: Generates features (TF-IDF/DistilBERT) using parameters tuned in previous steps.
+4.  **`train_advanced_models`**: Trains multiple models (LightGBM, XGBoost) using hyperparameters defined in `params.yaml`.
+5.  **`evaluate_models`**: Compares models and selects the "champion" based on metrics.
+6.  **`register_model`**: Promotes the champion model to the "Production" stage in MLflow if it meets the `f1_threshold`.
 
 To run the full pipeline:
 
@@ -115,6 +126,7 @@ This extension provides a high-level overview of the sentiment landscape for a v
 -   **Location:** `chrome-extension/`
 
 ![YouTube Sentiment Insights](reports/figures/YouTube_API/sentiment_prediction/YouTube_API_1.png)
+
 *Figure 1: The Sentiment Insights extension showing an overall analysis of comments.*
 
 ### Aspect-Based Sentiment Analysis (ABSA)
@@ -126,6 +138,7 @@ This advanced extension identifies sentiment towards specific topics (aspects) w
 -   **Location:** `chrome-extension-absa/`
 
 ![YouTube ABSA Insights](reports/figures/YouTube_API/aspect_based_sentiment/YouTube_API_4.png)
+
 *Figure 2: The ABSA extension breaking down sentiment by specific aspects.*
 
 ### Setup for Both Extensions

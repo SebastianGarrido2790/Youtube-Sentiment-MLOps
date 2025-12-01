@@ -26,12 +26,7 @@ The `dvc.yaml` file defines the entire ML pipeline as a Directed Acyclic Graph (
 **Example: The `feature_engineering` stage**
 ```yaml
 feature_engineering:
-  cmd: >
-    uv run python -m src.features.feature_engineering 
-    --use_distilbert ${feature_engineering.use_distilbert} 
-    --max_features ${imbalance_tuning.best_max_features} 
-    --ngram_range ${imbalance_tuning.best_ngram_range} 
-    --distilbert_batch_size ${feature_engineering.distilbert_batch_size}
+  cmd: uv run python -m src.features.feature_engineering
   deps:
     - data/processed/train.parquet
     - src/features/feature_engineering.py
@@ -42,9 +37,9 @@ feature_engineering:
   outs:
     - models/features/
 ```
--   **`cmd`**: The command to execute. DVC uses `${...}` to inject parameters from `params.yaml`.
+-   **`cmd`**: The command to execute. Notice it is clean and simple; the script loads its own parameters directly.
 -   **`deps`**: Dependencies. If any of these files change (e.g., `feature_engineering.py`), DVC knows to re-run this stage.
--   **`params`**: Parameters from `params.yaml` that this stage depends on. A change here also triggers a re-run.
+-   **`params`**: Parameters from `params.yaml` that this stage depends on. Even though they aren't passed in the command, listing them here ensures DVC detects changes in `params.yaml` and triggers a re-run.
 -   **`outs`**: Outputs. DVC tracks the directory `models/features/`. The actual data is stored in DVC's cache and tracked via `.dvc` files in Git.
 
 #### `params.yaml`: Centralized Configuration
@@ -57,7 +52,7 @@ imbalance_tuning:
   best_max_features: 1000  # Best result from feature_tuning
   best_ngram_range: (1,1)  # Best result from feature_comparison
 ```
-When `dvc repro feature_engineering` is run, DVC injects `1000` for `${imbalance_tuning.best_max_features}` into the command.
+When `dvc repro feature_engineering` is run, the Python script internally calls `dvc.api.params_show()` to read `1000` for `best_max_features`.
 
 ### MLOps Advantages of DVC
 -   **Reproducibility**: DVC tracks the exact version of code, data, and parameters used to produce a result. Anyone can check out a Git commit and run `dvc repro` to reproduce an experiment perfectly.
@@ -170,33 +165,32 @@ The current setup correctly implements this configuration-driven approach using 
 
 ### 1\. **`dvc.yaml` Stage Definition**
 
-The `dvc.yaml` explicitly tells DVC which parameters to use for the `data_preparation` stage:
+The `dvc.yaml` relies on DVC's parameter tracking to trigger re-runs, but the command itself remains clean:
 
 ```yaml
   data_preparation:
-    cmd: >
-      uv run python -m src.data.make_dataset 
-      --test_size ${data_preparation.test_size} 
-      --random_state ${data_preparation.random_state}
+    cmd: uv run python -m src.data.make_dataset
     # ...
     params:
-      - data_preparation.test_size  # DVC tracks this
-      - data_preparation.random_state # DVC tracks this
+      - data_preparation.test_size  # DVC monitors this for changes
+      - data_preparation.random_state # DVC monitors this for changes
     # ...
 ```
 
-DVC reads the values of `test_size` and `random_state` from `params.yaml`.
+DVC watches `params.yaml` for changes to these keys. If they change, it invalidates the stage cache.
 
-### 2\. **`params.yaml` Values**
+### 2\. **`src` Scripts**
 
-The current, authoritative values are:
+The Python scripts themselves (e.g., `src/data/make_dataset.py`) are responsible for reading the configuration:
 
-```yaml
-data_preparation:
-  test_size: 0.15  # <--- DVC will pass this
-  random_state: 42 # <--- DVC will pass this
+```python
+# Inside src/data/make_dataset.py
+import dvc.api
+
+def load_params():
+    # Loads directly from params.yaml
+    params = dvc.api.params_show()
+    return params["data_preparation"]
 ```
 
-These values override the `default=0.15` and `default=42` arguments defined in `src/data/make_dataset.py`, ensuring the DVC-tracked parameters are always used.
-
-This combination of `params.yaml`, `dvc.yaml`, and the `argparse`-enabled Python script is the standard and correct MLOps pattern for a reproducible pipeline.
+This ensures that `params.yaml` is the **Single Source of Truth**. The CLI arguments are reserved strictly for local debugging or temporary overrides.
